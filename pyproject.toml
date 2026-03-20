@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bbs-iss-prototype-dmu"
+version = "0.1.0"
+description = "BBS+ Signatures with Zero-Knowledge Range Proofs Prototype"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Ilya Smut", email = "ilya.smut.off.g@gmail.com" }
+]
+dependencies = [
+    "ursa-bbs-signatures>=1.0.1"
+]
+
+[project.optional-dependencies]
+dev = [
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
