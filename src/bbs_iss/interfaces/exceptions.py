@@ -18,8 +18,23 @@ class IssuerNotAvailable(Exception):
         self.message = message
         super().__init__(self.message)
 
+class HolderNotInInteraction(Exception):
+    def __init__(self, message="Holder is not in an active interaction"):
+        self.message = message
+        super().__init__(self.message)
+
 class FreshnessValueError(Exception):
     def __init__(self, message="Invalid freshness value"):
+        self.message = message
+        super().__init__(self.message)
+
+class HolderStateError(Exception):
+    def __init__(self, message="Invalid holder state"):
+        self.message = message
+        super().__init__(self.message)
+
+class ProofValidityError(Exception):
+    def __init__(self, message="Invalid proof"):
         self.message = message
         super().__init__(self.message)
 

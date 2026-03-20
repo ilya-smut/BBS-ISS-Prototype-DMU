@@ -1,8 +1,12 @@
-from enum import Enum
 import os
 import ursa_bbs_signatures as bbs
-from bbs_iss.interfaces.requests_api import api
+import bbs_iss.interfaces.requests_api as api
 from bbs_iss.interfaces.exceptions import IssuerNotAvailable, FreshnessValueError
+from bbs_iss.interfaces.credential import VerifiableCredential
+
+MOCK_ISSUER_PARAMETERS = {
+    "issuer": "Mock-Issuer"
+}
 
 class IssuerInstance:
     
@@ -39,14 +43,12 @@ class IssuerInstance:
         if request.request_type == api.RequestType.ISSUANCE:
             if not self.state.available:
                 raise IssuerNotAvailable()
-            nonce = self.gen_nonce()
-            self.state.start_interaction(api.RequestType.ISSUANCE, nonce)
-            return nonce
-        if request.request_type == api.RequestType.BLIND_SIGN:
-            blind_signature = self.blind_sign(request)
+            return self.freshness_response()
+        elif request.request_type == api.RequestType.BLIND_SIGN:
+            return self.issue_vc_blind(request)
+        else:
             self.state.end_interaction()
-            return blind_signature
-
+            raise ValueError("Invalid request type")
 
     def blind_sign(self, request: api.BlindSignRequest):
         ver_commitment_req = bbs.VerifyBlindedCommitmentRequest(
@@ -69,9 +71,24 @@ class IssuerInstance:
         return blinded_signature
 
 
-    def generate_vc(self):
-        pass
+    def issue_vc_blind(self, request: api.BlindSignRequest):
+        blind_signature = self.blind_sign(request)
+        attributes = VerifiableCredential.parse_keyed_indexed_messages(request.revealed_attributes+request.blinded_indices)
+        vc = VerifiableCredential(
+            issuer=MOCK_ISSUER_PARAMETERS["issuer"],
+            credential_subject=attributes,
+            proof=blind_signature
+        )
+        forward_vc_response = api.ForwardVCResponse(vc=vc)
+        self.state.end_interaction()
+        return forward_vc_response
     
     
     def key_gen(self):
         return bbs.BlsKeyPair.generate_g2(seed = os.urandom(32))
+
+
+    def freshness_response(self):
+        nonce = self.gen_nonce()
+        self.state.start_interaction(api.RequestType.FRESHNESS, nonce)
+        return api.FreshnessUpdateResponse(nonce)
