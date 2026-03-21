@@ -15,7 +15,8 @@ A Python prototype implementing **BBS+ blind issuance** between an Issuer and a 
   - [Interfaces](#interfaces)
     - [requests\_api](#requests_api)
     - [credential](#credential)
-    - [exceptions](#exceptions)
+  - [Exceptions](#exceptions)
+  - [Utils](#utils)
 - [Usage Example](#usage-example)
 - [Known Issues & Library Fixes](#known-issues--library-fixes)
 
@@ -58,16 +59,21 @@ BBS-ISS-Prototype-DMU/
 │       │   ├── __init__.py
 │       │   ├── issuer.py           # IssuerInstance class
 │       │   └── holder.py           # HolderInstance class
-│       └── interfaces/             # Shared data types and protocol messages
-│           ├── __init__.py
-│           ├── requests_api.py     # Request/response classes and data models
-│           ├── credential.py       # VerifiableCredential class
-│           └── exceptions.py       # Custom exception hierarchy
+│       ├── interfaces/             # Shared data types and protocol messages
+│       │   ├── __init__.py
+│       │   ├── requests_api.py     # Request/response classes and data models
+│       │   └── credential.py       # VerifiableCredential class
+│       ├── exceptions/             # Custom exception hierarchy
+│       │   └── exceptions.py       # All project exceptions
+│       └── utils/                  # Utility functions
+│           └── utils.py            # Nonce generation, link secret generation
 ├── examples/
 │   ├── blind_sign_test.py          # Standalone blind signing demo
 │   └── vp.py                       # Verifiable presentation + QR code demo
 ├── testing/
-│   └── playground.ipynb            # Interactive end-to-end issuance notebook
+│   ├── playground.ipynb            # Interactive end-to-end issuance notebook
+│   ├── issuance-test.py            # Issuance test script
+│   └── test-notebook.ipynb         # Test notebook
 └── reference/
     └── main.pdf                    # Reference paper
 ```
@@ -99,11 +105,11 @@ Holder                                        Issuer
 
 **Step 2 — Freshness Response:** The Issuer generates a random 32-byte nonce and returns it as a `FreshnessUpdateResponse`. This value binds the commitment to a specific session, preventing replay attacks.
 
-**Step 3 — Blind Sign Request:** The Holder builds a Pedersen commitment over its blinded attributes using the Issuer's nonce and public key. It sends a `BlindSignRequest` containing the commitment, a zero-knowledge proof of correct commitment construction, the revealed attributes, and their indices.
+**Step 3 — Blind Sign Request:** The Holder builds a Pedersen commitment over its blinded attributes using the Issuer's nonce and public key. This step also appends a `metaHash` revealed attribute that deterministically hashes the credential's metadata fields (context, type, issuer, subject keys). It sends a `BlindSignRequest` containing the commitment, a zero-knowledge proof of correct commitment construction, the revealed attributes (including `metaHash`), and their indices.
 
-**Step 4 — Forward VC Response:** The Issuer first verifies the blinded commitment proof. If valid, it computes a blind BBS+ signature over the commitment and the revealed attributes, wraps it in a `VerifiableCredential`, and returns it as a `ForwardVCResponse`.
+**Step 4 — Forward VC Response:** The Issuer first pre-computes the `VerifiableCredential` skeleton from the revealed and blinded attribute indices, then re-calculates the `metaHash` on the constructed VC and overwrites the placeholder value in both the VC and the signing request. It then verifies the blinded commitment proof. If valid, it computes a blind BBS+ signature over the commitment and the revealed attributes, attaches the signature to the VC, and returns it as a `ForwardVCResponse`.
 
-The Holder then unblinds the signature using its stored blinding factor and verifies it against the full attribute set.
+The Holder then unblinds the signature using its stored blinding factor, fills in the blinded attribute values, re-verifies the signature against the full attribute set (including a freshly re-computed `metaHash`), and stores the credential.
 
 ---
 
@@ -137,12 +143,11 @@ Tracks whether the Issuer is currently processing a request.
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__(_private_key_pair=None)` | Optional `bbs.BlsKeyPair` | — | Generates or accepts a BLS12-381 G2 keypair. Exposes the public key as a `PublicKeyBLS` wrapper via `self.public_key`. |
-| `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse` | Main dispatch method. Routes `ISSUANCE` requests to `freshness_response()` and `BLIND_SIGN` requests to `issue_vc_blind()`. |
-| `freshness_response()` | — | `FreshnessUpdateResponse` | Generates a 32-byte nonce, transitions to busy state, returns nonce wrapped in a response. |
+| `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse` | Main dispatch method. Routes `ISSUANCE` requests to `freshness_response()` and `BLIND_SIGN` requests to `issue_vc_blind()`. Raises `IssuerNotAvailable` if busy. |
+| `freshness_response()` | — | `FreshnessUpdateResponse` | Generates a 32-byte nonce via `utils.gen_nonce()`, transitions to busy state, returns nonce wrapped in a response. |
 | `blind_sign(request)` | `BlindSignRequest` | `bytes` | Verifies the blinded commitment proof, then computes a blind BBS+ signature. Raises `FreshnessValueError` if the commitment proof fails. |
-| `issue_vc_blind(request)` | `BlindSignRequest` | `ForwardVCResponse` | Calls `blind_sign()`, constructs a `VerifiableCredential` from the signature and attribute metadata, wraps it in a `ForwardVCResponse`. |
+| `issue_vc_blind(request)` | `BlindSignRequest` | `ForwardVCResponse` | Pre-computes a `VerifiableCredential` from the attribute metadata, calculates the `metaHash` via `normalize_meta_fields()`, updates it in both the VC and the signing request, calls `blind_sign()`, attaches the signature, and wraps the VC in a `ForwardVCResponse`. |
 | `key_gen()` | — | `bbs.BlsKeyPair` | Generates a BLS12-381 G2 keypair from a random 32-byte seed. |
-| `gen_nonce()` *(static)* | — | `bytes` | Returns 32 bytes of OS randomness. |
 
 ---
 
@@ -165,21 +170,24 @@ Tracks active interaction state including the Issuer's public key, attribute set
 | `cred_name`       | `str \| None`            | Name identifier for the credential               |
 | `original_request`| `RequestType \| None`    | The request type that started this interaction   |
 
-| Method                                            | Description                                    |
-|--------------------------------------------------|------------------------------------------------|
+| Method / Property                                     | Description                                    |
+|------------------------------------------------------|------------------------------------------------|
 | `start_interaction(issuer_pub_key, attributes, cred_name, original_request)` | Sets all state fields, marks as awaiting |
-| `add_freshness(nonce)`                           | Stores the freshness nonce                     |
-| `end_interaction()`                              | Clears all state fields                        |
+| `add_freshness(nonce)`                               | Stores the freshness nonce                     |
+| `end_interaction()`                                  | Clears all state fields                        |
+| `blind_sign_request_ready` *(property)*              | `True` when awaiting, original request is `ISSUANCE`, and no freshness yet |
+| `unblind_ready` *(property)*                         | `True` when awaiting, original request is `ISSUANCE`, and freshness is present |
 
 ##### `HolderInstance` Methods
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__()` | — | — | Initializes empty state and a `credentials` dictionary. |
-| `process_request(request)` | `Request` | `BlindSignRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses to `blind_sign_request()` and `FORWARD_VC` responses to `unblind_and_verify()`. Raises `HolderNotInInteraction` if no active interaction. |
+| `process_request(request)` | `Request` | `BlindSignRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses to `blind_sign_request()` and `FORWARD_VC` responses to `unblind_verify_save_vc()`. Raises `HolderNotInInteraction` if no active interaction. |
 | `issuance_request(issuer_pub_key, attributes, cred_name)` | `PublicKeyBLS`, `IssuanceAttributes`, `str` | `VCIssuanceRequest` | Initializes the Holder's interaction state and returns an issuance request. |
-| `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Stores the nonce, builds a Pedersen commitment over the blinded attributes (via `IssuanceAttributes.build_commitment()`), and constructs a `BlindSignRequest`. |
-| `unblind_and_verify(vc)` | `VerifiableCredential` | `bool` | Unblinds the signature using the stored blinding factor, verifies it against the full attribute list using the Issuer's public key, clears interaction state, and returns the verification result. |
+| `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Checks `blind_sign_request_ready`, stores the nonce, calls `build_commitment_append_meta()` (which also appends the `metaHash` placeholder attribute), and constructs a `BlindSignRequest`. Raises `HolderStateError` if preconditions are not met. |
+| `verify_vc(pub_key, vc=None, vc_name=None)` | `PublicKeyBLS`, optional `VerifiableCredential`, optional `str` | `bool` | Verifies a VC's BBS+ signature. Accepts either a VC object directly or a credential name to look up in `self.credentials`. Calls `vc.prepare_verification_request()` internally. |
+| `unblind_verify_save_vc(vc)` | `VerifiableCredential` | `bool` | Checks `unblind_ready`, unblinds the signature, fills in blinded attribute values in the VC, verifies the signature via `verify_vc()`, stores the credential, clears interaction state, and returns the verification result. Raises `HolderStateError` if preconditions are not met, or `ProofValidityError` if verification fails. |
 
 ---
 
@@ -214,7 +222,7 @@ Wrapper around a derived BBS+ signing public key.
 ##### `AttributeType` (Enum)
 
 | Member     | Value | Description        |
-|-----------|-------|--------------------|
+|-----------|-------|---------------------|
 | `REVEALED`| 1     | Known to the Issuer |
 | `HIDDEN`  | 2     | Blinded from the Issuer |
 
@@ -225,7 +233,7 @@ Wrapper around a derived BBS+ signing public key.
 Adds a `key` (attribute name) field to the library's `IndexedMessage`, allowing attributes to carry both a position index and a human-readable label.
 
 | Attribute | Type  | Description         |
-|----------|-------|---------------------|
+|----------|-------|----------------------|
 | `index`  | `int` | Position in the attribute vector |
 | `message`| `str` | The attribute value  |
 | `key`    | `str` | The attribute name   |
@@ -239,21 +247,21 @@ Manages the full attribute set for a credential issuance, separating revealed fr
 | `size` | `int` | Total number of attributes (revealed + blinded) |
 | `attributes` | `list[KeyedIndexedMessage]` | Revealed attributes |
 | `blinded_attributes` | `list[KeyedIndexedMessage]` | Blinded attributes (with real values) |
-| `blinded_indices` | `list[KeyedIndexedMessage]` | Blinded attribute indices with empty message values (library workaround) |
-| `_committed` | `bool` | Whether `build_commitment()` has been called |
+| `messages_with_blinded_indices` | `list[KeyedIndexedMessage]` | Blinded attribute indices with empty message values (library workaround) |
+| `_committed` | `bool` | Whether `build_commitment_append_meta()` has been called |
 | `_commitment` | `bytes \| None` | The Pedersen commitment |
 | `_blinding_factor` | `bytes \| None` | The blinding factor for unblinding |
 | `_proof` | `bytes \| None` | The zero-knowledge proof of correct commitment |
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
-| `append(key, attribute, type)` | `str`, `str`, `AttributeType` | — | Adds an attribute. Automatically assigns the next sequential index. Hidden attributes also generate a corresponding empty-valued entry in `blinded_indices`. |
-| `build_commitment(nonce, public_key)` | `bytes`, `PublicKeyBLS` | — | Derives the signing public key, creates a `CreateBlindedCommitmentRequest`, and stores the resulting commitment, blinding factor, and proof. |
+| `append(key, attribute, type)` | `str`, `str`, `AttributeType` | — | Adds an attribute. Automatically assigns the next sequential index. Hidden attributes also generate a corresponding empty-valued entry in `messages_with_blinded_indices`. |
+| `build_commitment_append_meta(nonce, public_key)` | `bytes`, `PublicKeyBLS` | — | First appends a `metaHash` placeholder as a revealed attribute via `VerifiableCredential.META_HASH_KEY`. Then derives the signing public key, creates a `CreateBlindedCommitmentRequest`, and stores the resulting commitment, blinding factor, and proof. Raises `NoBlindedAttributes` if no hidden attributes exist. |
 | `get_commitment()` | — | `bytes` | Returns the commitment. Raises `AttributesNotCommitted` if not yet built. |
 | `get_blinding_factor()` | — | `bytes` | Returns the blinding factor. Raises `AttributesNotCommitted` if not yet built. |
 | `get_revealed_attributes()` | — | `list[KeyedIndexedMessage]` | Returns revealed attributes. Raises `NoRevealedAttributes` if empty. |
 | `get_proof()` | — | `bytes` | Returns the commitment proof. Raises `AttributesNotCommitted` if not yet built. |
-| `get_blinded_indices()` | — | `list[KeyedIndexedMessage]` | Returns the blinded index entries. |
+| `get_messages_with_blinded_indices()` | — | `list[KeyedIndexedMessage]` | Returns the blinded index entries. |
 | `attributes_to_list()` | — | `list[str]` | Reconstructs a positionally-ordered list of all attribute values (revealed and blinded) for BBS+ verification. |
 
 ##### Request / Response Classes
@@ -265,7 +273,7 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `Request` | *(base)* | `request_type` | Abstract base for all protocol messages. |
 | `VCIssuanceRequest` | `ISSUANCE` | *(none)* | Signals the start of an issuance interaction. |
 | `FreshnessUpdateResponse` | `FRESHNESS` | `nonce: bytes` | Carries the Issuer's freshness nonce. |
-| `BlindSignRequest` | `BLIND_SIGN` | `revealed_attributes`, `commitment`, `total_messages`, `proof`, `blinded_indices` | Carries all data the Issuer needs to verify the commitment and compute a blind signature. |
+| `BlindSignRequest` | `BLIND_SIGN` | `revealed_attributes`, `commitment`, `total_messages`, `proof`, `messages_with_blinded_indices` | Constructed directly from an `IssuanceAttributes` instance. Carries all data the Issuer needs to verify the commitment and compute a blind signature. |
 | `ForwardVCResponse` | `FORWARD_VC` | `vc: VerifiableCredential` | Carries the issued credential back to the Holder. |
 
 ##### `RequestType` (Enum)
@@ -293,13 +301,26 @@ All request and response objects inherit from `Request` and carry a `request_typ
 
 A mock W3C Verifiable Credential for BBS+ signatures.
 
+##### Class Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `DEFAULT_CONTEXT` | `["https://www.w3.org/2018/credentials/v1", "https://w3id.org/security/bbs/v1"]` | Default JSON-LD `@context` |
+| `DEFAULT_TYPE` | `["VerifiableCredential"]` | Base credential type (extended with `"MockCredential"` at instantiation) |
+| `META_HASH_KEY` | `"metaHash"` | Key used in `credential_subject` for the metadata hash |
+| `META_HASH_PLACEHOLDER` | `"PLACE-HOLDER-METAHASH"` | Placeholder value before `metaHash` is computed |
+
+##### Instance Attributes
+
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `context` | `list[str]` | JSON-LD `@context` (defaults to W3C credentials/v1 and BBS security context) |
+| `context` | `list[str]` | JSON-LD `@context` (defaults to `DEFAULT_CONTEXT`) |
 | `type` | `list[str]` | Credential types (defaults to `["VerifiableCredential", "MockCredential"]`) |
 | `issuer` | `str` | Issuer identifier |
 | `credential_subject` | `dict[str, Any]` | Key-value map of credential attributes |
 | `proof` | `bytes \| None` | The BBS+ signature bytes |
+
+##### Methods
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
@@ -307,26 +328,39 @@ A mock W3C Verifiable Credential for BBS+ signatures.
 | `from_dict(data)` *(classmethod)* | `dict` | `VerifiableCredential` | Deserializes from a dictionary. |
 | `to_json(indent=4)` | `int` | `str` | JSON serialization. |
 | `from_json(json_str)` *(classmethod)* | `str` | `VerifiableCredential` | JSON deserialization. |
-| `parse_keyed_indexed_messages(messages)` *(static)* | `list[KeyedIndexedMessage]` | `dict[str, str]` | Converts a list of `KeyedIndexedMessage` objects into a `{key: message}` dictionary, sorted by index. |
+| `parse_sorted_keyed_indexed_messages(messages)` *(static)* | `list[KeyedIndexedMessage]` | `dict[str, str]` | Converts a list of `KeyedIndexedMessage` objects into a `{key: message}` dictionary, sorted by index. |
+| `prepare_verification_request(pub_key)` | `PublicKeyBLS` | `bbs.VerifyRequest` | Builds a BBS+ `VerifyRequest` by copying the credential subject, re-computing the `metaHash` via `normalize_meta_fields()`, and assembling the message list with the issuer's public key and stored signature. |
+| `normalize_meta_fields()` | — | `str` | Deterministically hashes the credential's metadata fields (`@context`, `type`, `issuer`, sorted `credentialSubject` keys, `proof` label) via incremental BLAKE2b (32-byte digest). Returns the hex digest. |
 
 ---
 
-#### `exceptions`
+### Exceptions
 
-**Module:** `bbs_iss.interfaces.exceptions`
+**Module:** `bbs_iss.exceptions.exceptions`
 
-All exceptions use the pattern `def __init__(self, message="<default>")`.
+All exceptions use the pattern `def __init__(self, message="<default>")` unless otherwise noted.
 
 | Exception | Default Message | Typical Trigger |
 |-----------|----------------|-----------------|
-| `AttributesNotCommitted` | "Attributes not committed" | Accessing commitment data before `build_commitment()` |
-| `NoBlindedAttributes` | "No blinded attributes" | Calling `build_commitment()` with no hidden attributes |
+| `AttributesNotCommitted` | "Attributes not committed" | Accessing commitment data before `build_commitment_append_meta()` |
+| `NoBlindedAttributes` | "No blinded attributes" | Calling `build_commitment_append_meta()` with no hidden attributes |
 | `NoRevealedAttributes` | "No revealed attributes" | Calling `get_revealed_attributes()` when none exist |
 | `IssuerNotAvailable` | "Issuer is processing another request" | Sending `ISSUANCE` while Issuer is busy |
 | `HolderNotInInteraction` | "Holder is not in an active interaction" | Calling `process_request()` without a prior `issuance_request()` |
 | `FreshnessValueError` | "Invalid freshness value" | Blinded commitment verification failure |
-| `HolderStateError` | "Invalid holder state" | State precondition not met in Holder |
-| `ProofValidityError` | "Invalid proof" | *(Currently unused — reserved for VP verification)* |
+| `HolderStateError` | "Invalid holder state" | State precondition not met in Holder. Accepts an optional `state` keyword argument; when provided, the error message includes a dump of all state attributes for debugging. |
+| `ProofValidityError` | "Invalid proof" | BBS+ signature verification failure after unblinding |
+
+---
+
+### Utils
+
+**Module:** `bbs_iss.utils.utils`
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `gen_link_secret(size=32)` | `int` | `str` | Generates a hex-encoded random link secret of the given byte size via `os.urandom`. |
+| `gen_nonce()` | — | `bytes` | Returns 32 bytes of OS randomness. Used by `IssuerInstance.freshness_response()`. |
 
 ---
 
@@ -356,13 +390,15 @@ init_request = holder.issuance_request(
 # 4. Issuer → Holder: Freshness nonce
 freshness_response = issuer.process_request(init_request)
 
-# 5. Holder → Issuer: Blind sign request (commitment built internally)
+# 5. Holder → Issuer: Blind sign request
+#    (commitment built internally; metaHash placeholder appended)
 blind_sign_request = holder.process_request(freshness_response)
 
 # 6. Issuer → Holder: Signed credential
+#    (metaHash computed and injected; commitment verified; blind signature applied)
 forward_vc_response = issuer.process_request(blind_sign_request)
 
-# 7. Holder: Unblind and verify
+# 7. Holder: Unblind, verify, and store
 is_valid = holder.process_request(forward_vc_response)
 print("Credential valid:", is_valid)  # True
 ```
