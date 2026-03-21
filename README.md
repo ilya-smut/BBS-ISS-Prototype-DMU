@@ -38,8 +38,15 @@ cd BBS-ISS-Prototype-DMU
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install the package in editable mode
-pip install -e .
+# Install the package and development dependencies (pytest) in editable mode
+pip install -e .[dev]
+```
+
+### Running Tests
+
+To run the unit test suite:
+```bash
+pytest testing/unit/
 ```
 
 ---
@@ -71,6 +78,7 @@ BBS-ISS-Prototype-DMU/
 │   ├── blind_sign_test.py          # Standalone blind signing demo
 │   └── vp.py                       # Verifiable presentation + QR code demo
 ├── testing/
+│   ├── unit/                       # Pytest comprehensive unit test suite
 │   ├── playground.ipynb            # Interactive end-to-end issuance notebook
 │   ├── issuance-test.py            # Issuance test script
 │   └── test-notebook.ipynb         # Test notebook
@@ -145,7 +153,7 @@ Tracks whether the Issuer is currently processing a request.
 | `__init__(_private_key_pair=None)` | Optional `bbs.BlsKeyPair` | — | Generates or accepts a BLS12-381 G2 keypair. Exposes the public key as a `PublicKeyBLS` wrapper via `self.public_key`. |
 | `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse` | Main dispatch method. Routes `ISSUANCE` requests to `freshness_response()` and `BLIND_SIGN` requests to `issue_vc_blind()`. Raises `IssuerNotAvailable` if busy. |
 | `freshness_response()` | — | `FreshnessUpdateResponse` | Generates a 32-byte nonce via `utils.gen_nonce()`, transitions to busy state, returns nonce wrapped in a response. |
-| `blind_sign(request)` | `BlindSignRequest` | `bytes` | Verifies the blinded commitment proof, then computes a blind BBS+ signature. Raises `FreshnessValueError` if the commitment proof fails. |
+| `blind_sign(request)` | `BlindSignRequest` | `bytes` | Verifies the blinded commitment proof, then computes a blind BBS+ signature. Raises `ProofValidityError` if the commitment proof fails. |
 | `issue_vc_blind(request)` | `BlindSignRequest` | `ForwardVCResponse` | Pre-computes a `VerifiableCredential` from the attribute metadata, calculates the `metaHash` via `normalize_meta_fields()`, updates it in both the VC and the signing request, calls `blind_sign()`, attaches the signature, and wraps the VC in a `ForwardVCResponse`. |
 | `key_gen()` | — | `bbs.BlsKeyPair` | Generates a BLS12-381 G2 keypair from a random 32-byte seed. |
 
@@ -187,7 +195,7 @@ Tracks active interaction state including the Issuer's public key, attribute set
 | `issuance_request(issuer_pub_key, attributes, cred_name)` | `PublicKeyBLS`, `IssuanceAttributes`, `str` | `VCIssuanceRequest` | Initializes the Holder's interaction state and returns an issuance request. |
 | `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Checks `blind_sign_request_ready`, stores the nonce, calls `build_commitment_append_meta()` (which also appends the `metaHash` placeholder attribute), and constructs a `BlindSignRequest`. Raises `HolderStateError` if preconditions are not met. |
 | `verify_vc(pub_key, vc=None, vc_name=None)` | `PublicKeyBLS`, optional `VerifiableCredential`, optional `str` | `bool` | Verifies a VC's BBS+ signature. Accepts either a VC object directly or a credential name to look up in `self.credentials`. Calls `vc.prepare_verification_request()` internally. |
-| `unblind_verify_save_vc(vc)` | `VerifiableCredential` | `bool` | Checks `unblind_ready`, unblinds the signature, fills in blinded attribute values in the VC, verifies the signature via `verify_vc()`, stores the credential, clears interaction state, and returns the verification result. Raises `HolderStateError` if preconditions are not met, or `ProofValidityError` if verification fails. |
+| `unblind_verify_save_vc(vc)` | `VerifiableCredential` | `bool` | Checks `unblind_ready`, unblinds the signature, fills in blinded attribute values in the VC, verifies the signature via `verify_vc()`, stores the credential, clears interaction state, and returns the verification result. Raises `HolderStateError` if preconditions are not met, or `ProofValidityError` if signature verification fails. |
 
 ---
 
@@ -349,7 +357,7 @@ All exceptions use the pattern `def __init__(self, message="<default>")` unless 
 | `HolderNotInInteraction` | "Holder is not in an active interaction" | Calling `process_request()` without a prior `issuance_request()` |
 | `FreshnessValueError` | "Invalid freshness value" | Blinded commitment verification failure |
 | `HolderStateError` | "Invalid holder state" | State precondition not met in Holder. Accepts an optional `state` keyword argument; when provided, the error message includes a dump of all state attributes for debugging. |
-| `ProofValidityError` | "Invalid proof" | BBS+ signature verification failure after unblinding |
+| `ProofValidityError` | "Invalid proof" | Raised on failure of BBS+ signature verification after unblinding on the Holder side, or failure of blinded commitment proof verification on the Issuer side. |
 
 ---
 

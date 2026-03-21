@@ -2,7 +2,7 @@ import os
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 import bbs_iss.utils.utils as utils
-from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError
+from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError
 from bbs_iss.interfaces.credential import VerifiableCredential
 
 MOCK_ISSUER_PARAMETERS = {
@@ -55,7 +55,7 @@ class IssuerInstance:
         )
         if bbs.verify_blinded_commitment(ver_commitment_req) != bbs.SignatureProofStatus.success:
             self.state.end_interaction()
-            raise FreshnessValueError()
+            raise ProofValidityError("Invalid proof of commitment to hidden attributes")
 
         ursa_Blind_sign_request = bbs.BlindSignRequest(
             secret_key=self._private_key_pair,
