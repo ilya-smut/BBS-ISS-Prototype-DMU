@@ -29,23 +29,18 @@ A Python prototype implementing **BBS+ blind issuance** between an Issuer and a 
 
 ## Installation
 
+An automated setup script is provided to initialize submodules, build the virtual environment, and install all dependencies (including the vendored FFI cryptography library).
+
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone git@github.com:ilya-smut/BBS-ISS-Prototype-DMU.git
 cd BBS-ISS-Prototype-DMU
 
-# Create and activate a virtual environment
-python3 -m venv .venv
+# Run the automated setup script
+./setup.sh
+
+# Activate the virtual environment before running the project
 source .venv/bin/activate
-
-# Initialize the submodules
-git submodule update --init --recursive
-
-# Install the locally patched library from the submodule
-pip install -e ./vendor/ffi-bbs-signatures/wrappers/python
-
-# Install the package and development dependencies (pytest) in editable mode
-pip install -e .[dev]
 ```
 
 ### Running Tests
@@ -61,10 +56,13 @@ pytest testing/unit/
 
 ```
 BBS-ISS-Prototype-DMU/
+├── setup.sh                        # Automated installation script
 ├── pyproject.toml                  # Package configuration
 ├── README.md                       # This file
 ├── BBS_LIBRARY_FIX.md              # Documentation of ursa_bbs_signatures bug fixes
 ├── BLINDED_COMMITMENT_NOTE.md      # Security note on blinded index data leakage
+├── vendor/
+│   └── ffi-bbs-signatures/         # Vendored and patched cryptography library
 ├── src/
 │   └── bbs_iss/                    # Main package
 │       ├── __init__.py
@@ -107,7 +105,9 @@ Holder                                        Issuer
   │                                              │
   │──── 3. BlindSignRequest ────────────────────>│
   │     (commitment, proof, revealed attrs)      │
-  │                                              │
+  │                                              ├── verify commitment proof
+  │                                              ├── build VC skeleton
+  │                                              ├── compute blind signature
   │<─── 4. ForwardVCResponse (VC w/ blind sig) ──│
   │                                              │
   ├── unblind signature                          │
@@ -421,6 +421,14 @@ print("Credential valid:", is_valid)  # True
 
 ## Known Issues & Library Fixes
 
-The `ursa_bbs_signatures` library contains several bugs that required local patches. See [`BBS_LIBRARY_FIX.md`](BBS_LIBRARY_FIX.md) for the full list of fixes applied to the library within `.venv`.
+The `ursa_bbs_signatures` library contains several bugs that required local patches. See [`BBS_LIBRARY_FIX.md`](BBS_LIBRARY_FIX.md) for the full list of fixes applied to the library.
 
 A security note on potential data leakage during blinded commitment verification is documented in [`BLINDED_COMMITMENT_NOTE.md`](BLINDED_COMMITMENT_NOTE.md).
+
+---
+
+## Acknowledgments
+
+This prototype utilizes the Python wrapper and `libbbs.so` components from the [ffi-bbs-signatures](https://github.com/mattrglobal/ffi-bbs-signatures) repository (originally maintained by `mattrglobal` / Hyperledger Aries Contributors) for its underlying cryptographic operations. 
+
+A locally patched version of this library is vendored into this project as a Git Submodule under `vendor/ffi-bbs-signatures` to resolve critical execution bugs during blind signing and verify flows. All original rights and open-source licenses (Apache 2.0 / MIT) associated with the `ffi-bbs-signatures` repository remain explicitly applicable to the submodule source.
