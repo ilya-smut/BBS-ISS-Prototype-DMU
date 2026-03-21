@@ -38,6 +38,12 @@ cd BBS-ISS-Prototype-DMU
 python3 -m venv .venv
 source .venv/bin/activate
 
+# Initialize the submodules
+git submodule update --init --recursive
+
+# Install the locally patched library from the submodule
+pip install -e ./vendor/ffi-bbs-signatures/wrappers/python
+
 # Install the package and development dependencies (pytest) in editable mode
 pip install -e .[dev]
 ```

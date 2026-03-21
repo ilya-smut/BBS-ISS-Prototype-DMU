@@ -1,0 +1,3 @@
+[submodule "vendor/ffi-bbs-signatures"]
+	path = vendor/ffi-bbs-signatures
+	url = https://github.com/ilya-smut/ffi-bbs-signatures.git
