@@ -330,7 +330,7 @@ A mock W3C Verifiable Credential for BBS+ signatures.
 | `from_json(json_str)` *(classmethod)* | `str` | `VerifiableCredential` | JSON deserialization. |
 | `parse_sorted_keyed_indexed_messages(messages)` *(static)* | `list[KeyedIndexedMessage]` | `dict[str, str]` | Converts a list of `KeyedIndexedMessage` objects into a `{key: message}` dictionary, sorted by index. |
 | `prepare_verification_request(pub_key)` | `PublicKeyBLS` | `bbs.VerifyRequest` | Builds a BBS+ `VerifyRequest` by copying the credential subject, re-computing the `metaHash` via `normalize_meta_fields()`, and assembling the message list with the issuer's public key and stored signature. |
-| `normalize_meta_fields()` | — | `str` | Deterministically hashes the credential's metadata fields (`@context`, `type`, `issuer`, sorted `credentialSubject` keys, `proof` label) via incremental BLAKE2b (32-byte digest). Returns the hex digest. |
+| `normalize_meta_fields()` | — | `str` | Deterministically hashes the credential's metadata fields (`@context`, `type`, `issuer`, `credentialSubject` keys in insertion order, `proof` label) via incremental BLAKE2b (32-byte digest). Key order is preserved (not sorted) so that reordering attributes produces a different hash — this is required for BBS message-index binding. Returns the hex digest. |
 
 ---
 

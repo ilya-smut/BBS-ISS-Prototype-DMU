@@ -118,9 +118,9 @@ class VerifiableCredential:
         h.update(b'issuer')
         h.update(self.issuer.encode())
 
-        # credentialSubject — only sorted keys (not values)
+        # credentialSubject — keys in original order (order-sensitive for BBS message indexing)
         h.update(b'credentialSubject')
-        for key in sorted(self.credential_subject.keys()):
+        for key in self.credential_subject.keys():
             h.update(key.encode())
 
         # proof
