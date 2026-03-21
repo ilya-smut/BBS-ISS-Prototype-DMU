@@ -29,7 +29,13 @@ class FreshnessValueError(Exception):
         super().__init__(self.message)
 
 class HolderStateError(Exception):
-    def __init__(self, message="Invalid holder state"):
+    def __init__(self, message="Invalid holder state", state=None):
+        self.state = state
+        if state is not None:
+            state_details = "\n".join(
+                f"  {key}: {value!r}" for key, value in vars(state).items()
+            )
+            message = f"{message}\nHolder state at time of error:\n{state_details}"
         self.message = message
         super().__init__(self.message)
 

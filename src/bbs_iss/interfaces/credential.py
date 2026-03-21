@@ -1,10 +1,12 @@
 from __future__ import annotations
+import hashlib
 import json
 from datetime import datetime
+import ursa_bbs_signatures as bbs
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bbs_iss.interfaces.requests_api import KeyedIndexedMessage
+    from bbs_iss.interfaces.requests_api import KeyedIndexedMessage, PublicKeyBLS
 
 
 class VerifiableCredential:
@@ -16,6 +18,8 @@ class VerifiableCredential:
         "https://w3id.org/security/bbs/v1"
     ]
     DEFAULT_TYPE = ["VerifiableCredential"]
+    META_HASH_KEY = "metaHash"
+    META_HASH_PLACEHOLDER = "PLACE-HOLDER-METAHASH"
 
     def __init__(
         self,
@@ -64,10 +68,63 @@ class VerifiableCredential:
         return cls.from_dict(data)
 
     @staticmethod
-    def parse_keyed_indexed_messages(messages: list[KeyedIndexedMessage]) -> Dict[str, str]:
+    def parse_sorted_keyed_indexed_messages(messages: list[KeyedIndexedMessage]) -> Dict[str, str]:
         sorted_messages = sorted(messages, key=lambda x: x.index)
         parsed_messages = {}
         for message in sorted_messages:
             parsed_messages[message.key] = message.message
         return parsed_messages
+    
+    def prepare_verification_request(self, pub_key: PublicKeyBLS):
+        messages = self.credential_subject.copy() # copying to avoid changing the original credential subject
+        messages[self.META_HASH_KEY] = self.normalize_meta_fields() # Calculating new metaHash
+        message_list=list(messages.values()) # converting to list of messages
+        request = bbs.VerifyRequest(
+            key_pair=bbs.BlsKeyPair(public_key=pub_key.key),
+            signature=self.proof,
+            messages=message_list
+        )
+        return request
+    
+    def normalize_meta_fields(self) -> str:
+        """
+        {
+            '@context': [context_strings],
+            'type': [type_strings],
+            'issuer': 'Issuer-name',
+            'credentialSubject': {
+                'key1': 'value1',
+                'key2': 'value2'
+            },
+            'proof': 'ProofBytes'
+        } --> incremental hashing of ['@context', [context_strings], 'type', [type_strings], 'issuer', 'Issuer-name', 'credentialSubject', ['key1', 'key2', ...], 'proof'] --> HashValue
+
+        Incrementally hashes each component via blake2b to avoid
+        building a large intermediate concatenated string.
+        """
+        h = hashlib.blake2b(digest_size=32)
+
+        # @context
+        h.update(b'@context')
+        for ctx in self.context:
+            h.update(ctx.encode())
+
+        # type
+        h.update(b'type')
+        for t in self.type:
+            h.update(t.encode())
+
+        # issuer
+        h.update(b'issuer')
+        h.update(self.issuer.encode())
+
+        # credentialSubject — only sorted keys (not values)
+        h.update(b'credentialSubject')
+        for key in sorted(self.credential_subject.keys()):
+            h.update(key.encode())
+
+        # proof
+        h.update(b'proof')
+
+        return h.hexdigest()
         

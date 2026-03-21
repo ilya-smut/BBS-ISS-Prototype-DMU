@@ -1,7 +1,8 @@
 import os
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
-from bbs_iss.interfaces.exceptions import IssuerNotAvailable, FreshnessValueError
+import bbs_iss.utils.utils as utils
+from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError
 from bbs_iss.interfaces.credential import VerifiableCredential
 
 MOCK_ISSUER_PARAMETERS = {
@@ -31,12 +32,7 @@ class IssuerInstance:
             self.public_key = api.PublicKeyBLS(self._private_key_pair.public_key)
         else:
             self._private_key_pair = _private_key_pair
-            self.public_key = api.PublicKeyBLS(self._private_key_pair.public_key)
-
-
-    @staticmethod
-    def gen_nonce():
-        return os.urandom(32)   
+            self.public_key = api.PublicKeyBLS(self._private_key_pair.public_key) 
 
 
     def process_request(self, request: api.Request):
@@ -54,7 +50,7 @@ class IssuerInstance:
         ver_commitment_req = bbs.VerifyBlindedCommitmentRequest(
             public_key=api.SigningPublicKey.derive_signing_public_key(self.public_key, request.total_messages).key,
             proof = request.proof,
-            blinded_indices=request.blinded_indices,
+            blinded_indices=request.messages_with_blinded_indices,
             nonce = self.state.freshness
         )
         if bbs.verify_blinded_commitment(ver_commitment_req) != bbs.SignatureProofStatus.success:
@@ -72,13 +68,26 @@ class IssuerInstance:
 
 
     def issue_vc_blind(self, request: api.BlindSignRequest):
-        blind_signature = self.blind_sign(request)
-        attributes = VerifiableCredential.parse_keyed_indexed_messages(request.revealed_attributes+request.blinded_indices)
+        # Pre-computing VC
+        attributes = VerifiableCredential.parse_sorted_keyed_indexed_messages(request.revealed_attributes+request.messages_with_blinded_indices)
         vc = VerifiableCredential(
             issuer=MOCK_ISSUER_PARAMETERS["issuer"],
             credential_subject=attributes,
-            proof=blind_signature
+            proof=None # VC is not signed yet
         )
+        if vc.META_HASH_KEY not in vc.credential_subject:
+            raise ValueError("META_HASH_KEY not found in credential subject")
+        meta_hash = vc.normalize_meta_fields() # Calculating metaHash
+        vc.credential_subject[vc.META_HASH_KEY] = meta_hash # Appending metaHash to VC
+        # Changing metaHash attribute in request
+        # metaHash is always appended at the end, but we still iterate just in case. Starting from end for efficiency
+        for attr in reversed(request.revealed_attributes):
+            if attr.key == vc.META_HASH_KEY:
+                attr.message = meta_hash
+                break
+        blind_signature = self.blind_sign(request)
+        vc.proof = blind_signature
+        
         forward_vc_response = api.ForwardVCResponse(vc=vc)
         self.state.end_interaction()
         return forward_vc_response
@@ -89,6 +98,6 @@ class IssuerInstance:
 
 
     def freshness_response(self):
-        nonce = self.gen_nonce()
+        nonce = utils.gen_nonce()
         self.state.start_interaction(api.RequestType.FRESHNESS, nonce)
         return api.FreshnessUpdateResponse(nonce)
