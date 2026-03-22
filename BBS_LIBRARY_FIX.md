@@ -18,8 +18,8 @@ The patched library is now vendored within this project as a Git Submodule under
 
 ### Return Type Parsing
 **Bug:** Verification functions incorrectly returned a raw boolean (`result == 0`) which didn't map to the library's internal status enums.
-**Fix:** Modified the return to utilize the `SignatureProofStatus(result)` enum.
-**Reason:** This ensures the Python implementation correctly interprets integer status codes (like invalid proofs vs. system errors) returned by the Rust backend.
+**Fix:** Modified the return to utilize the `SignatureProofStatus(result)` enum. We additionally aligned `SignatureProofStatus` values (`success = 0`) to accurately reflect the FFI backend behavior and caught `FfiException` in Python when proof commitments are invalid to properly return `SignatureProofStatus.bad_hidden_signature`.
+**Reason:** The Rust backend safely triggers `ExternError` on failure rather than returning a specific error integer. This fix seamlessly maps FFI Exceptions back into the unified status codes expected by the application.
 
 ## 2. FFI Binding Corrections (`_ffi/bindings/`)
 
@@ -45,7 +45,7 @@ The patched library is now vendored within this project as a Git Submodule under
 **Fix:** Added explicit `func.restype = c_int32`.
 **Reason:** `ctypes` defaults to returning standard integers, but explicitly defining sizes prevents stack alignment and pointer truncation issues across different architectures.
 
-## 3. Native Binary Bundling
+## 3. Dynamic Native Build
 
-**Addition:** A pre-compiled `libbbs.so` binary has been bundled directly into `vendor/ffi-bbs-signatures/wrappers/python/ursa_bbs_signatures/`.
-**Reason:** The official `ursa_bbs_signatures` package requires a local Rust toolchain to compile the underlying cryptography engine from source. Bundling the Linux `.so` shared object library bypasses this, allowing the Prototype to run out-of-the-box without forcing users to configure Rust.
+**Addition:** The `setup.sh` script has been updated to automatically compile `libbbs.so` (or `.dylib` on macOS) using `cargo build --release` from the vendored source code before installing the Python wrapper.
+**Reason:** Pre-bundling a Linux `.so` shared object library caused "invalid ELF header" and libc mismatch issues across different host systems. Delegating the build directly to Cargo during setup ensures cross-platform compatibility, though a local Rust toolchain must now be present on the host.
