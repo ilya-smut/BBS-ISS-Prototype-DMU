@@ -5,8 +5,8 @@ set -e
 
 echo "Setting up BBS-ISS-Prototype-DMU..."
 
-echo "1. Initializing Git Submodules..."
-git submodule update --init --recursive
+echo "1. Initializing Git Submodules (tracking remote HEAD)..."
+git submodule update --remote --init --recursive
 
 echo "2. Creating Virtual Environment (.venv)..."
 python3 -m venv .venv
