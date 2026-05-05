@@ -88,7 +88,7 @@ def issuance_setup():
     
     # Store credential in holder and verify
     assert holder.process_request(forward_vc) is True
-    vc = holder.credentials["test-cred"]
+    vc, _ = holder.credentials["test-cred"]
     return holder, issuer, vc
 
 def test_signature_invalid_on_context_change(issuance_setup):

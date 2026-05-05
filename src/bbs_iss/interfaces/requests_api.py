@@ -3,7 +3,7 @@ import ursa_bbs_signatures as bbs
 from enum import Enum
 from typing import TYPE_CHECKING
 from bbs_iss.exceptions.exceptions import AttributesNotCommitted, NoBlindedAttributes, NoRevealedAttributes
-from bbs_iss.interfaces.credential import VerifiableCredential
+from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresentation
 
 
 class PublicKeyBLS:
@@ -146,3 +146,16 @@ class ForwardVCResponse(Request):
     def __init__(self, vc: VerifiableCredential):
         super().__init__(RequestType.FORWARD_VC)
         self.vc = vc
+
+class VPRequest(Request):
+    def __init__(self, requested_attributes: list[str], nonce: bytes):
+        super().__init__(RequestType.VP_REQUEST)
+        self.requested_attributes = requested_attributes
+        self.nonce = nonce
+
+class ForwardVPResponse(Request):
+    def __init__(self, vp: VerifiablePresentation, pub_key: PublicKeyBLS):
+        super().__init__(RequestType.FORWARD_VP)
+        self.vp = vp
+        self.pub_key = pub_key
+

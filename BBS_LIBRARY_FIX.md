@@ -21,6 +21,11 @@ The patched library is now vendored within this project as a Git Submodule under
 **Fix:** Modified the return to utilize the `SignatureProofStatus(result)` enum.
 **Reason:** This ensures the Python implementation correctly interprets integer status codes (like invalid proofs vs. system errors) returned by the Rust backend.
 
+### Enum Value Reversion (`SignatureProofStatus.py`)
+**Bug:** A previous commit erroneously changed the enum values in `SignatureProofStatus` from HTTP-like status codes (`200`, `400`, `401`, `402`) to sequential integers (`0`, `1`, `2`, `3`). This caused a `ValueError` when parsing the Rust backend's successful verification response (`200`).
+**Fix:** Reverted the enum values back to their original `200`, `400`, `401`, `402` mapping.
+**Reason:** The underlying Rust cryptography engine returns these specific HTTP-like integer codes. The Python wrapper must match them exactly to prevent runtime crashes during verification.
+
 ## 2. FFI Binding Corrections (`_ffi/bindings/`)
 
 ### C-Types Memory Safety (`byref`)
@@ -44,6 +49,11 @@ The patched library is now vendored within this project as a Git Submodule under
 **Bug:** `bbs_get_total_messages_count_for_proof` lacked a defined C return type.
 **Fix:** Added explicit `func.restype = c_int32`.
 **Reason:** `ctypes` defaults to returning standard integers, but explicitly defining sizes prevents stack alignment and pointer truncation issues across different architectures.
+
+### Missing c_int32 Import (`bbs_verify_proof.py`)
+**Bug:** The `c_int32` type was used in `bbs_get_total_messages_count_for_proof` but never imported from `ctypes`.
+**Fix:** Added `c_int32` to the `ctypes` import statement at the top of the file.
+**Reason:** Attempting to retrieve the total message count from a proof threw a `NameError`, preventing VP verification requests from being constructed.
 
 ## 3. Native Binary Bundling
 

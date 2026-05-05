@@ -2,7 +2,7 @@ import bbs_iss
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, HolderNotInInteraction, HolderStateError, ProofValidityError
-from bbs_iss.interfaces.credential import VerifiableCredential
+from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresentation
 
 
 class HolderInstance:
@@ -70,12 +70,15 @@ class HolderInstance:
         request = api.BlindSignRequest(self.state.attributes)
         return request
     
-    def verify_vc(self, pub_key: api.PublicKeyBLS, vc: VerifiableCredential = None, vc_name: str = None):
+    def verify_vc(self, pub_key: api.PublicKeyBLS = None, vc: VerifiableCredential = None, vc_name: str = None):
         if vc and not vc_name:
+            if not pub_key:
+                raise ValueError("pub_key is required when verifying a VC directly")
             validity_status = bbs.verify(vc.prepare_verification_request(pub_key))
         elif vc_name and not vc:
-            vc = self.credentials[vc_name]
-            validity_status = bbs.verify(vc.prepare_verification_request(pub_key))
+            stored_vc, stored_pub_key = self.credentials[vc_name]
+            key = pub_key or stored_pub_key
+            validity_status = bbs.verify(stored_vc.prepare_verification_request(key))
         else:
             raise ValueError("Invalid arguments")
         return validity_status
@@ -100,13 +103,169 @@ class HolderInstance:
             self.state.end_interaction()
             raise ProofValidityError("Invalid proof")
 
-        # Saving VC
-        self.credentials[self.state.cred_name] = vc
+        # Saving VC alongside the issuer's public key
+        self.credentials[self.state.cred_name] = (vc, self.state.issuer_pub_key)
         
         self.state.end_interaction()
         return validity_status
 
-            
-        
-        
-        
+
+    def build_vp(
+        self,
+        revealed_keys: list[str],
+        nonce: bytes,
+        issuer_pub_key: api.PublicKeyBLS = None,
+        vc: VerifiableCredential = None,
+        vc_name: str = None,
+        always_hidden_keys: list[str] = None,
+    ) -> VerifiablePresentation:
+        """
+        Builds a Verifiable Presentation with a BBS+ zero-knowledge proof.
+
+        Parameters
+        ----------
+        revealed_keys : list[str]
+            Credential subject keys to disclose in the presentation.
+        nonce : bytes
+            The challenge nonce provided by the verifier.
+        issuer_pub_key : PublicKeyBLS, optional
+            The issuer's BLS12-381 G2 public key (needed to derive the
+            BBS signing key for proof creation). If *vc_name* is used,
+            the key is retrieved from storage automatically.
+        vc : VerifiableCredential, optional
+            The credential to present. Mutually exclusive with *vc_name*.
+        vc_name : str, optional
+            Name of a stored credential to present. Mutually exclusive with *vc*.
+        always_hidden_keys : list[str], optional
+            Application-level keys (e.g. link secret) that must never be
+            revealed regardless of *revealed_keys*.
+
+        Returns
+        -------
+        VerifiablePresentation
+            A VP with the ZKP proof already populated.
+        """
+        # ── Resolve credential ───────────────────────────────────────
+        if vc_name and not vc:
+            stored_vc, stored_pub_key = self.credentials[vc_name]
+            vc = stored_vc
+            issuer_pub_key = issuer_pub_key or stored_pub_key
+        elif not vc:
+            raise ValueError("Either vc or vc_name must be provided")
+        if not issuer_pub_key:
+            raise ValueError("issuer_pub_key is required when presenting a VC directly")
+
+        # Keys that are always hidden: metaHash (internal) + caller-supplied
+        enforced_hidden = {VerifiableCredential.META_HASH_KEY}
+        if always_hidden_keys:
+            enforced_hidden.update(always_hidden_keys)
+
+        # ── Build VP shell (only revealed attributes) ────────────────
+        vp = VerifiablePresentation()
+        vp.from_verifiable_credential(vc, revealed_keys)
+
+        # ── Prepare ProofMessage list ────────────────────────────────
+        # The full message list from the VC (credential_subject already
+        # includes metaHash from issuance) with each message tagged as
+        # Revealed or Hidden.
+        proof_messages = []
+        for key, value in vc.credential_subject.items():
+            if key in enforced_hidden or key not in revealed_keys:
+                proof_messages.append(bbs.ProofMessage(
+                    message=value,
+                    proof_type=bbs.ProofMessageType.HiddenProofSpecificBlinding
+                ))
+            else:
+                proof_messages.append(bbs.ProofMessage(
+                    message=value,
+                    proof_type=bbs.ProofMessageType.Revealed
+                ))
+
+        # ── Derive BBS signing public key ────────────────────────────
+        total_messages = len(proof_messages)
+        bls_key_pair = bbs.BlsKeyPair(public_key=issuer_pub_key.key)
+        bbs_public_key = bls_key_pair.get_bbs_key(total_messages)
+
+        # ── Build bound nonce and create proof ───────────────────────
+        bound_nonce = vp.build_bound_nonce(nonce)
+
+        proof_request = bbs.CreateProofRequest(
+            public_key=bbs_public_key,
+            messages=proof_messages,
+            signature=vc.proof,
+            nonce=bound_nonce
+        )
+        proof = bbs.create_proof(proof_request)
+
+        # ── Attach proof to VP and return ────────────────────────────
+        vp.add_proof(proof)
+        return vp
+
+
+    def present_credential(
+        self,
+        vp_request: api.VPRequest,
+        vc_name: str,
+        always_hidden_keys: list[str] = None,
+    ) -> api.ForwardVPResponse:
+        """
+        Processes a Verifier's VP request and builds a Verifiable Presentation.
+
+        Calling this method implies holder consent. Attribute selection
+        and user approval are delegated to the application layer above.
+
+        Checks performed:
+            1. Credential exists in the holder's store.
+            2. All requested attributes exist in the credential.
+            3. No requested attribute conflicts with enforced-hidden keys.
+
+        Parameters
+        ----------
+        vp_request : VPRequest
+            The verifier's presentation request (contains requested
+            attributes and challenge nonce).
+        vc_name : str
+            Name of the stored credential to present.
+        always_hidden_keys : list[str], optional
+            Keys that must never be revealed (e.g. link secret).
+
+        Returns
+        -------
+        ForwardVPResponse
+            Ready-to-send response containing the VP and the issuer's
+            public key for the verifier.
+        """
+        # ── 1. Resolve credential ────────────────────────────────────
+        if vc_name not in self.credentials:
+            raise ValueError(f"Credential '{vc_name}' not found")
+        stored_vc, stored_pub_key = self.credentials[vc_name]
+
+        requested = set(vp_request.requested_attributes)
+
+        # ── 2. Attribute availability ────────────────────────────────
+        available = set(stored_vc.credential_subject.keys())
+        missing = requested - available
+        if missing:
+            raise ValueError(
+                f"Credential '{vc_name}' is missing requested attributes: {missing}"
+            )
+
+        # ── 3. Hidden-key conflict ───────────────────────────────────
+        enforced_hidden = {VerifiableCredential.META_HASH_KEY}
+        if always_hidden_keys:
+            enforced_hidden.update(always_hidden_keys)
+        conflict = requested & enforced_hidden
+        if conflict:
+            raise ValueError(
+                f"Requested attributes conflict with enforced-hidden keys: {conflict}"
+            )
+
+        # ── 4. Build VP ──────────────────────────────────────────────
+        vp = self.build_vp(
+            revealed_keys=list(requested),
+            nonce=vp_request.nonce,
+            vc_name=vc_name,
+            always_hidden_keys=always_hidden_keys,
+        )
+
+        return api.ForwardVPResponse(vp=vp, pub_key=stored_pub_key)
