@@ -16,7 +16,7 @@ class HolderInstance:
             self.cred_name = cred_name
             self.original_request = original_request
         
-        def start_interaction(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str, original_request: api.RequestType):
+        def start_issuance_interaction(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str, original_request: api.RequestType):
             self.awaiting = True
             self.issuer_pub_key = issuer_pub_key
             self.attributes = attributes
@@ -31,6 +31,8 @@ class HolderInstance:
             self.freshness = None
             self.issuer_pub_key = None
             self.attributes = None
+            self.cred_name = None
+            self.original_request = None
 
         @property
         def blind_sign_request_ready(self) -> bool:
@@ -56,7 +58,7 @@ class HolderInstance:
             raise ValueError("Invalid request type")
             
     def issuance_request(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str):
-        self.state.start_interaction(issuer_pub_key, attributes, cred_name, api.RequestType.ISSUANCE)
+        self.state.start_issuance_interaction(issuer_pub_key, attributes, cred_name, api.RequestType.ISSUANCE)
         request = api.VCIssuanceRequest()
         return request
     
