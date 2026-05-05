@@ -12,6 +12,7 @@ A Python prototype implementing **BBS+ blind issuance** between an Issuer and a 
   - [Entities](#entities)
     - [IssuerInstance](#issuerinstance)
     - [HolderInstance](#holderinstance)
+    - [VerifierInstance](#verifierinstance)
   - [Interfaces](#interfaces)
     - [requests\_api](#requests_api)
     - [credential](#credential)
@@ -127,6 +128,37 @@ The Holder then unblinds the signature using its stored blinding factor, fills i
 
 ---
 
+### Presentation Protocol (Holder ↔ Verifier)
+
+The selective disclosure protocol enables the Holder to present a verifiable subset of attributes to a Verifier using a zero-knowledge proof without revealing blinded attributes (such as link secrets) or any non-requested attributes.
+
+```
+Verifier                                      Holder
+  │                                              │
+  │──── 1. VPRequest ───────────────────────────>│
+  │     (requested attrs, challenge nonce)       │
+  │                                              ├── resolve credential
+  │                                              ├── verify attribute availability
+  │                                              ├── prevent hidden key conflict
+  │                                              ├── build Verifiable Presentation
+  │                                              ├── derive ZKP proof over bound nonce
+  │<─── 2. ForwardVPResponse ────────────────────│
+  │     (VP, issuer_pub_key)                     │
+  ├── verify attribute completeness              │
+  ├── verify BBS+ ZKP                            │
+  └── extract revealed attributes                │
+```
+
+**Step 1 — VP Request:** The Verifier initiates a presentation by generating a random challenge nonce and sending a `VPRequest` specifying the list of attribute keys it requires.
+
+**Step 2 — Forward VP Response:** The Holder receives the request and resolves the target credential. It ensures all requested attributes are present and none conflict with application-enforced hidden keys (e.g., link secrets). It builds a `VerifiablePresentation` containing only the requested subset. 
+
+To prevent replay attacks and ensure cryptographic binding to the credential envelope, the Holder hashes the VP's envelope with the Verifier's original challenge nonce to derive a **bound nonce**. It then computes a zero-knowledge proof (ZKP) over the original BBS+ signature, utilizing the bound nonce, and attaches the proof to the VP. The VP is returned in a `ForwardVPResponse`.
+
+**Step 3 — Verification:** The Verifier first checks **Attribute Completeness** to ensure the Holder didn't omit required fields. It then reconstructs the **bound nonce** identically to the Holder and verifies the ZKP. If successful, the Verifier safely extracts the revealed attributes.
+
+---
+
 ## Module Reference
 
 ### Entities
@@ -196,12 +228,48 @@ Tracks active interaction state including the Issuer's public key, attribute set
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
-| `__init__()` | — | — | Initializes empty state and a `credentials` dictionary. |
+| `__init__()` | — | — | Initializes empty state and a `credentials` dictionary mapping names to `(VerifiableCredential, PublicKeyBLS)` tuples. |
 | `process_request(request)` | `Request` | `BlindSignRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses to `blind_sign_request()` and `FORWARD_VC` responses to `unblind_verify_save_vc()`. Raises `HolderNotInInteraction` if no active interaction. |
 | `issuance_request(issuer_pub_key, attributes, cred_name)` | `PublicKeyBLS`, `IssuanceAttributes`, `str` | `VCIssuanceRequest` | Initializes the Holder's interaction state and returns an issuance request. |
 | `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Checks `blind_sign_request_ready`, stores the nonce, calls `build_commitment_append_meta()` (which also appends the `metaHash` placeholder attribute), and constructs a `BlindSignRequest`. Raises `HolderStateError` if preconditions are not met. |
-| `verify_vc(pub_key, vc=None, vc_name=None)` | `PublicKeyBLS`, optional `VerifiableCredential`, optional `str` | `bool` | Verifies a VC's BBS+ signature. Accepts either a VC object directly or a credential name to look up in `self.credentials`. Calls `vc.prepare_verification_request()` internally. |
-| `unblind_verify_save_vc(vc)` | `VerifiableCredential` | `bool` | Checks `unblind_ready`, unblinds the signature, fills in blinded attribute values in the VC, verifies the signature via `verify_vc()`, stores the credential, clears interaction state, and returns the verification result. Raises `HolderStateError` if preconditions are not met, or `ProofValidityError` if signature verification fails. |
+| `verify_vc(pub_key=None, vc=None, vc_name=None)` | optional `PublicKeyBLS`, optional `VerifiableCredential`, optional `str` | `bool` | Verifies a VC's BBS+ signature. Accepts either a VC object directly or a credential name to look up in `self.credentials`. Calls `vc.prepare_verification_request()` internally. |
+| `unblind_verify_save_vc(vc)` | `VerifiableCredential` | `bool` | Checks `unblind_ready`, unblinds the signature, fills in blinded attribute values in the VC, verifies the signature via `verify_vc()`, stores the credential alongside the issuer public key, clears interaction state, and returns the verification result. Raises `HolderStateError` if preconditions are not met, or `ProofValidityError` if signature verification fails. |
+| `build_vp(revealed_keys, nonce, issuer_pub_key=None, vc=None, vc_name=None, always_hidden_keys=None)` | `list[str]`, `bytes`, kwargs | `VerifiablePresentation` | Core ZKP construction logic. Resolves the credential, builds the VP envelope via `from_verifiable_credential()`, tags ProofMessages as `Revealed` or `Hidden`, derives the bound nonce via `vp.build_bound_nonce()`, and runs `bbs.create_proof()`. |
+| `present_credential(vp_request, vc_name, always_hidden_keys=None)` | `VPRequest`, `str`, optional `list[str]` | `ForwardVPResponse` | High-level API for responding to a verifier. Checks attribute availability, ensures no conflict with `always_hidden_keys`, delegates to `build_vp()`, and returns the `ForwardVPResponse`. |
+
+---
+
+#### `VerifierInstance`
+
+**Module:** `bbs_iss.entities.verifier`
+
+The Verifier initiates presentation requests, issues challenge nonces, and cryptographically verifies the resulting zero-knowledge proofs.
+
+##### Inner Class: `VerifierInstance.State`
+
+Tracks whether the Verifier is currently waiting for a presentation.
+
+| Attribute    | Type           | Description                                           |
+|-------------|----------------|-------------------------------------------------------|
+| `awaiting`  | `bool`         | `True` while waiting for a VP response                |
+| `freshness` | `bytes \| None`| The challenge nonce issued to the Holder              |
+| `attributes`| `list[str] \| None`| The list of attributes requested                      |
+| `type`      | `RequestType \| None` | Tracking the active request type (`VP_REQUEST`) |
+
+| Method / Property                               | Description                                    |
+|-------------------------------------------------|------------------------------------------------|
+| `start_vp_request(nonce, attributes)`           | Sets all state fields, marks as awaiting       |
+| `end_interaction()`                             | Clears all state fields, marks as available    |
+| `available` *(property)*                        | `True` when not awaiting                       |
+
+##### `VerifierInstance` Methods
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `__init__()` | — | — | Initializes empty state. |
+| `presentation_request(requested_attributes)` | `list[str]` | `VPRequest` | Generates a 32-byte challenge nonce via `gen_nonce()`, saves it to state along with the required attributes, and returns a `VPRequest`. Raises `VerifierStateError` if already busy. |
+| `process_request(request)` | `Request` | `tuple` | Main dispatch method. Routes `FORWARD_VP` responses to `verify_vp()`. Raises `VerifierNotInInteraction` if no request is pending. |
+| `verify_vp(vp, pub_key)` | `VerifiablePresentation`, `PublicKeyBLS` | `tuple[bool, dict \| None, VP]` | Two-phase verification. Phase 1 checks Attribute Completeness against the original `requested_attributes`. Phase 2 reconstructs the bound nonce and runs BBS+ `verify_proof()`. Returns `(is_valid, revealed_attributes, vp_object)`. |
 
 ---
 
@@ -289,6 +357,8 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `FreshnessUpdateResponse` | `FRESHNESS` | `nonce: bytes` | Carries the Issuer's freshness nonce. |
 | `BlindSignRequest` | `BLIND_SIGN` | `revealed_attributes`, `commitment`, `total_messages`, `proof`, `messages_with_blinded_indices` | Constructed directly from an `IssuanceAttributes` instance. Carries all data the Issuer needs to verify the commitment and compute a blind signature. |
 | `ForwardVCResponse` | `FORWARD_VC` | `vc: VerifiableCredential` | Carries the issued credential back to the Holder. |
+| `VPRequest` | `VP_REQUEST` | `requested_attributes: list[str]`, `nonce: bytes` | Dispatched by Verifier to request specific attributes and bind the proof to a challenge. |
+| `ForwardVPResponse` | `FORWARD_VP` | `vp: VerifiablePresentation`, `pub_key: PublicKeyBLS` | Carries the ZKP and revealed attributes back to the Verifier. |
 
 ##### `RequestType` (Enum)
 
@@ -299,9 +369,9 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `BLIND_SIGN` | 3 | ✓ |
 | `BLIND_RE_SIGN` | 4 | — |
 | `FRESHNESS` | 5 | ✓ |
-| `VP_REQUEST` | 6 | — |
+| `VP_REQUEST` | 6 | ✓ |
 | `FORWARD_VC` | 7 | ✓ |
-| `FORWARD_VP` | 8 | — |
+| `FORWARD_VP` | 8 | ✓ |
 | `VRF_ACKNOWLEDGE` | 9 | — |
 | `ERROR` | 10 | — |
 
@@ -346,6 +416,21 @@ A mock W3C Verifiable Credential for BBS+ signatures.
 | `prepare_verification_request(pub_key)` | `PublicKeyBLS` | `bbs.VerifyRequest` | Builds a BBS+ `VerifyRequest` by copying the credential subject, re-computing the `metaHash` via `normalize_meta_fields()`, and assembling the message list with the issuer's public key and stored signature. |
 | `normalize_meta_fields()` | — | `str` | Deterministically hashes the credential's metadata fields (`@context`, `type`, `issuer`, `credentialSubject` keys in insertion order, `proof` label) via incremental BLAKE2b (32-byte digest). Key order is preserved (not sorted) so that reordering attributes produces a different hash — this is required for BBS message-index binding. Returns the hex digest. |
 
+##### `VerifiablePresentation`
+
+A W3C-style Verifiable Presentation envelope that carries the ZKP proof and a stripped-down `VerifiableCredential` containing only revealed attributes.
+
+##### Methods
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `from_verifiable_credential(credential, revealed_attributes)` | `VerifiableCredential`, `list[str]` | — | Populates the VP envelope using a subset of the original VC's attributes. |
+| `add_proof(proof)` | `bytes` | — | Sets the ZKP bytes on the embedded VC. |
+| `normalize_meta_fields()` | — | `str` | Hashes the VP envelope and the embedded credential envelope (excluding variable proof values and the values of the revealed attributes, as they are protected by the ZKP). Provides deterministic data binding using BLAKE2b. |
+| `build_bound_nonce(nonce)` | `bytes` | `bytes` | Produces an *effective nonce* by hashing the verifier's original challenge nonce with the output of `normalize_meta_fields()`. This cryptographically binds the metadata envelope to the specific presentation session. |
+| `prepare_verification_request(pub_key, nonce)` | `PublicKeyBLS`, `bytes` | `bbs.VerifyProofRequest` | Reconstructs the bound nonce and extracts revealed message values in order, producing the final request needed for the Verifier to execute `bbs.verify_proof`. |
+| Serialization | `to_dict()`, `from_dict()`, `to_json()`, `from_json()` | — | Converts between python objects, dictionaries, and JSON strings, maintaining proper hex encoding of the ZKP proof. |
+
 ---
 
 ### Exceptions
@@ -364,6 +449,8 @@ All exceptions use the pattern `def __init__(self, message="<default>")` unless 
 | `FreshnessValueError` | "Invalid freshness value" | Blinded commitment verification failure |
 | `HolderStateError` | "Invalid holder state" | State precondition not met in Holder. Accepts an optional `state` keyword argument; when provided, the error message includes a dump of all state attributes for debugging. |
 | `ProofValidityError` | "Invalid proof" | Raised on failure of BBS+ signature verification after unblinding on the Holder side, or failure of blinded commitment proof verification on the Issuer side. |
+| `VerifierNotInInteraction`| "Verifier is not in an active interaction" | Calling `process_request()` in the Verifier without a prior `presentation_request()` |
+| `VerifierStateError` | "Invalid verifier state" | State precondition not met in Verifier (e.g. issuing two VP requests sequentially). Accepts an optional `state` keyword argument. |
 
 ---
 
@@ -380,41 +467,70 @@ All exceptions use the pattern `def __init__(self, message="<default>")` unless 
 
 ## Usage Example
 
-```python
-from bbs_iss.entities.holder import HolderInstance
-from bbs_iss.entities.issuer import IssuerInstance
-import bbs_iss.interfaces.requests_api as api
+## Usage Example
 
-# 1. Setup
+The following code demonstrates a full round-trip from blind issuance to selective disclosure via zero-knowledge proof.
+
+```python
+from bbs_iss.entities.issuer import IssuerInstance
+from bbs_iss.entities.holder import HolderInstance
+from bbs_iss.entities.verifier import VerifierInstance
+import bbs_iss.interfaces.requests_api as api
+import bbs_iss.utils.utils as utils
+
+# ─── 1. Setup & Key Generation ───────────────────────────────────────
 issuer = IssuerInstance()
 holder = HolderInstance()
+verifier = VerifierInstance()
 
-# 2. Define attributes
+# ─── 2. Define Attributes for Issuance ───────────────────────────────
 attributes = api.IssuanceAttributes()
+attributes.append("secret", utils.gen_nonce(), api.AttributeType.HIDDEN)
+attributes.append("not_secret", "very not secret", api.AttributeType.REVEALED)
 attributes.append("name", "Alice", api.AttributeType.REVEALED)
-attributes.append("ssn", "123-45-6789", api.AttributeType.HIDDEN)
+attributes.append("studentId", "S-001", api.AttributeType.REVEALED)
 
-# 3. Holder → Issuer: Issuance request
+# ─── 3. ISSUANCE FLOW ────────────────────────────────────────────────
+# Holder initiates issuance
 init_request = holder.issuance_request(
-    issuer_pub_key=issuer.public_key,
-    attributes=attributes,
-    cred_name="identity-credential"
+    issuer_pub_key=issuer.public_key, 
+    attributes=attributes, 
+    cred_name="test-cred"
 )
 
-# 4. Issuer → Holder: Freshness nonce
+# Issuer provides freshness challenge
 freshness_response = issuer.process_request(init_request)
 
-# 5. Holder → Issuer: Blind sign request
-#    (commitment built internally; metaHash placeholder appended)
+# Holder builds blinded commitment and proof
 blind_sign_request = holder.process_request(freshness_response)
 
-# 6. Issuer → Holder: Signed credential
-#    (metaHash computed and injected; commitment verified; blind signature applied)
+# Issuer verifies commitment and blind-signs the credential
 forward_vc_response = issuer.process_request(blind_sign_request)
 
-# 7. Holder: Unblind, verify, and store
-is_valid = holder.process_request(forward_vc_response)
-print("Credential valid:", is_valid)  # True
+# Holder unblinds signature and saves valid credential
+is_vc_valid = holder.process_request(forward_vc_response)
+print(f"Credential issuance success: {is_vc_valid}")
+
+# ─── 4. PRESENTATION FLOW ────────────────────────────────────────────
+# Verifier requests specific attributes with a challenge nonce
+vp_request = verifier.presentation_request(
+    requested_attributes=["studentId", "name"]
+)
+
+# Holder builds zero-knowledge proof of requested attributes
+# Ensures "secret" is never disclosed even if requested
+vp_response = holder.present_credential(
+    vp_request=vp_request, 
+    vc_name="test-cred", 
+    always_hidden_keys=["secret"]
+)
+
+# Verifier confirms completeness and validates ZKP against bound nonce
+is_vp_valid, revealed_attrs, vp_obj = verifier.process_request(vp_response)
+
+print(f"Presentation validation success: {is_vp_valid}")
+print(f"Revealed Attributes: {revealed_attrs}")
+# Output: {'name': 'Alice', 'studentId': 'S-001'}
 ```
 
 ---
