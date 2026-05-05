@@ -1,6 +1,6 @@
 # BBS-ISS-Prototype-DMU
 
-A Python prototype implementing **BBS+ blind issuance** between an Issuer and a Holder, using the [`ursa_bbs_signatures`](https://pypi.org/project/ursa-bbs-signatures/) library. The project demonstrates a multi-round credential issuance protocol with blinded commitments, selective disclosure, and zero-knowledge proof verification.
+A Python prototype implementing **BBS+ blind issuance and selective disclosure** between an Issuer, a Holder, and a Verifier, using the [`ursa_bbs_signatures`](https://pypi.org/project/ursa-bbs-signatures/) library. The project demonstrates a complete credential lifecycle: a multi-round issuance protocol with blinded commitments, followed by Verifiable Presentation (VP) generation with zero-knowledge proof verification.
 
 ## Table of Contents
 
@@ -70,22 +70,27 @@ BBS-ISS-Prototype-DMU/
 │       ├── entities/               # Protocol participants
 │       │   ├── __init__.py
 │       │   ├── issuer.py           # IssuerInstance class
-│       │   └── holder.py           # HolderInstance class
+│       │   ├── holder.py           # HolderInstance class
+│       │   └── verifier.py         # VerifierInstance class
 │       ├── interfaces/             # Shared data types and protocol messages
 │       │   ├── __init__.py
 │       │   ├── requests_api.py     # Request/response classes and data models
-│       │   └── credential.py       # VerifiableCredential class
+│       │   └── credential.py       # VerifiableCredential and VerifiablePresentation classes
 │       ├── exceptions/             # Custom exception hierarchy
 │       │   └── exceptions.py       # All project exceptions
 │       └── utils/                  # Utility functions
 │           └── utils.py            # Nonce generation, link secret generation
-├── examples/
-│   ├── blind_sign_test.py          # Standalone blind signing demo
-│   └── vp.py                       # Verifiable presentation + QR code demo
 ├── testing/
 │   ├── unit/                       # Pytest comprehensive unit test suite
-│   ├── playground.ipynb            # Interactive end-to-end issuance notebook
+│   │   ├── test_attributes.py
+│   │   ├── test_credential.py
+│   │   ├── test_issuance_flow.py
+│   │   ├── test_participant_states.py
+│   │   ├── test_verifiable_presentation.py
+│   │   └── test_vp_flow.py         # Tests for Verifiable Presentation API
+│   ├── vp-test.py                  # End-to-end issuance and presentation test script
 │   ├── issuance-test.py            # Issuance test script
+│   ├── playground.ipynb            # Interactive end-to-end issuance notebook
 │   └── test-notebook.ipynb         # Test notebook
 └── reference/
     └── main.pdf                    # Reference paper
