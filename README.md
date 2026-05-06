@@ -411,7 +411,7 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | Member | Value | Used In Protocol |
 |--------|-------|:---:|
 | `ISSUANCE` | 1 | ✓ |
-| `RE_ISSUANCE` | 2 | — |
+| `RE_ISSUANCE` | 2 | ✓ |
 | `BLIND_SIGN` | 3 | ✓ |
 | `BLIND_RE_SIGN` | 4 | — |
 | `FRESHNESS` | 5 | ✓ |
@@ -420,6 +420,7 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `FORWARD_VP` | 8 | ✓ |
 | `VRF_ACKNOWLEDGE` | 9 | — |
 | `ERROR` | 10 | — |
+| `FORWARD_VP_AND_CMT` | 11 | ✓ |
 
 ---
 
@@ -473,8 +474,8 @@ A W3C-style Verifiable Presentation envelope that carries the ZKP proof and a st
 | `from_verifiable_credential(credential, revealed_attributes)` | `VerifiableCredential`, `list[str]` | — | Populates the VP envelope using a subset of the original VC's attributes. |
 | `add_proof(proof)` | `bytes` | — | Sets the ZKP bytes on the embedded VC. |
 | `normalize_meta_fields()` | — | `str` | Hashes the VP envelope and the embedded credential envelope (excluding variable proof values and the values of the revealed attributes, as they are protected by the ZKP). Provides deterministic data binding using BLAKE2b. |
-| `build_bound_nonce(nonce)` | `bytes` | `bytes` | Produces an *effective nonce* by hashing the verifier's original challenge nonce with the output of `normalize_meta_fields()`. This cryptographically binds the metadata envelope to the specific presentation session. |
-| `prepare_verification_request(pub_key, nonce)` | `PublicKeyBLS`, `bytes` | `bbs.VerifyProofRequest` | Reconstructs the bound nonce and extracts revealed message values in order, producing the final request needed for the Verifier to execute `bbs.verify_proof`. |
+| `build_bound_nonce(nonce, commitment=None)` | `bytes`, optional `bytes` | `bytes` | Produces an *effective nonce* by hashing the verifier's original challenge nonce with the output of `normalize_meta_fields()` (and optionally an embedded `commitment` for re-issuance flows). This cryptographically binds the metadata envelope and new commitment to the specific presentation session. |
+| `prepare_verification_request(pub_key, nonce, commitment=None)` | `PublicKeyBLS`, `bytes`, optional `bytes` | `bbs.VerifyProofRequest` | Reconstructs the bound nonce and extracts revealed message values in order, producing the final request needed for the Verifier to execute `bbs.verify_proof`. |
 | Serialization | `to_dict()`, `from_dict()`, `to_json()`, `from_json()` | — | Converts between python objects, dictionaries, and JSON strings, maintaining proper hex encoding of the ZKP proof. |
 
 ---
