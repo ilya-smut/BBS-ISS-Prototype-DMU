@@ -16,7 +16,7 @@ def issued_credential_and_entities():
     issuer = IssuerInstance()
     # Configure a realistic re-issuance window
     issuer.set_re_issuance_window_days(7)
-    issuer.set_valid_until_weeks(1) # Short valid period for tests
+    issuer.set_epoch_size_days(7) # Short valid period for tests
     
     holder = HolderInstance()
     
@@ -51,7 +51,7 @@ class TestReissuanceFlow:
         # Configure the issuer for stress testing so the credential never expires during the test
         # We set a large re-issuance window and small validity
         issuer.set_re_issuance_window_days(1000)
-        issuer.set_valid_until_weeks(1)
+        issuer.set_epoch_size_days(7)
 
         for _ in range(100):
             init_req = holder.re_issuance_request(
@@ -68,7 +68,7 @@ class TestReissuanceFlow:
         """Ensure state isolation across multiple concurrent interactions."""
         issuer = IssuerInstance()
         issuer.set_re_issuance_window_days(100) # Ensure it doesn't fail expiration check
-        issuer.set_valid_until_weeks(1)
+        issuer.set_epoch_size_days(7)
         
         holders = []
         cred_names = []
@@ -205,9 +205,9 @@ class TestReissuanceFlow:
         
         original_vc, _ = holder.credentials[cred_name]
         
-        # Let's say validUntil is right now + 7 days
-        # And window is 2 days. Then distance is 7 days > 2 days -> Should fail
-        issuer.set_re_issuance_window_days(2)
+        # With epoch-based validity, the expiry is at the next epoch boundary.
+        # If we set the window to a negative value, any valid credential will fail the check.
+        issuer.set_re_issuance_window_days(-1)
         
         init_req = holder.re_issuance_request(
             vc_name=cred_name,
@@ -216,7 +216,7 @@ class TestReissuanceFlow:
         freshness_resp = issuer.process_request(init_req)
         re_issuance_req = holder.process_request(freshness_resp)
         
-        # Will fail because expiration is ~7 days away, which is > 2 days window
+        # Will fail because expiration is ~7 days away, which is > -1
         with pytest.raises(Exception):
             issuer.process_request(re_issuance_req)
 
@@ -290,7 +290,8 @@ class TestReissuanceFlow:
         new_expiry = new_vc.credential_subject["validUntil"]
         new_metaHash = new_vc.credential_subject["metaHash"]
         
-        assert new_expiry != old_expiry
+        # In epoch-based logic, instantaneous re-issuance yields the exact same epoch boundary.
+        assert new_expiry == old_expiry
         assert new_metaHash == old_metaHash
         
         from bbs_iss.entities.verifier import VerifierInstance

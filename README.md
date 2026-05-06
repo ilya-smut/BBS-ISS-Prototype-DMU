@@ -194,6 +194,15 @@ Issuer                                        Holder
 
 ---
 
+### Epoch-Based Expiration Logic
+
+To prevent timeline-based correlation attacks (where attackers track users across platforms by their unique credential expiration timestamps), this prototype implements strict **Epoch-Based Validity**. 
+
+- **Global Alignment:** Rather than calculating expiration dynamically (e.g., `now + duration`), the system calculates distance from a rigid, system-wide `baseline_date`. All credentials issued within the same cycle expire on the exact same second, granting users absolute temporal anonymity.
+- **Window Bumping:** If a credential is issued or re-issued close to an upcoming boundary (specifically, within the configured `re_issuance_window_days`), the logic automatically rolls the expiration forward by one full epoch. This elegantly ensures holders are never issued a credential that is already legally "about to expire", while naturally facilitating early/on-time re-issuances without requiring inspection of their previous credential.
+
+---
+
 ## Module Reference
 
 ### Entities
@@ -224,7 +233,7 @@ Tracks whether the Issuer is currently processing a request.
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__(_private_key_pair=None)` | Optional `bbs.BlsKeyPair` | — | Generates or accepts a BLS12-381 G2 keypair. Exposes the public key as a `PublicKeyBLS` wrapper via `self.public_key`. |
-| `set_valid_until_weeks(weeks)` | `int` | — | Sets the default credential expiration duration in weeks. |
+| `set_epoch_size_days(days)` | `int` | — | Sets the default credential expiration duration in days. |
 | `set_re_issuance_window_days(days)` | `int` | — | Sets the allowed time window before expiration when re-issuance is permitted. |
 | `set_issuer_parameters(params)` | `dict` | — | Sets arbitrary parameters like the issuer's name. |
 | `get_configuration()` | — | `str` | Returns a formatted string detailing the issuer's current configuration. |
@@ -233,7 +242,7 @@ Tracks whether the Issuer is currently processing a request.
 | `blind_sign(request)` | `BlindSignRequest` | `bytes` | Verifies the blinded commitment proof, then computes a blind BBS+ signature. Raises `ProofValidityError` if the commitment proof fails. |
 | `issue_vc_blind(request)` | `BlindSignRequest` | `ForwardVCResponse` | Pre-computes a `VerifiableCredential` from the attribute metadata, appends validity and revocation fields, calculates the `metaHash`, updates it in both the VC and the signing request, calls `blind_sign()`, attaches the signature, and wraps the VC in a `ForwardVCResponse`. |
 | `re_issue_vc(request)` | `ForwardVpAndCmtRequest` | `ForwardVCResponse` | Verifies the presentation of the old credential, ensures attributes match the new request, checks re-issuance window limits, verifies the new commitment, computationally revokes the old index, and issues a new VC with updated expiry. |
-| `generate_valid_until(old_expiry=None)` | Optional `datetime` | `str` | Generates a new `validUntil` ISO-8601 string based on the current time or an existing expiration. |
+| `generate_valid_until()` | — | `str` | Calculates the upcoming globally-aligned epoch boundary based on the `baseline_date` and `epoch_size_days`, automatically rolling to the next boundary if the current time falls within the re-issuance window. |
 | `generate_revocation_index()` | — | `str` | Generates a revocation index identifier for the credential. |
 | `revoke_index(index)` | `str` | — | Marks the given index as revoked (mock implementation). |
 | `key_gen()` | — | `bbs.BlsKeyPair` | Generates a BLS12-381 G2 keypair from a random 32-byte seed. |

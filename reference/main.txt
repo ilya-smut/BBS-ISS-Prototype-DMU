@@ -1,0 +1,2375 @@
+Privacy-Preserving Predicate-Based Credentials with
+ZK Proofs: Interoperability, Revocation, and Practical
+Deployment
+Ilya Smut, BSc (Hons) Cyber Security, De Montfort University
+March 19, 2026
+
+Contents
+
+1 Introduction
+
+3
+
+1.1
+
+Project’s Motivation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+3
+
+1.2
+
+Roadmap . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+4
+
+1.3
+
+Acronyms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+4
+
+2 Literature Review
+
+6
+
+2.1
+
+Self-Sovereign Identity . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+6
+
+2.2
+
+Regulatory Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+8
+
+2.3
+
+Verifiable Credentials and Selective Disclosure Mechanisms . . . . . . . . . .
+
+9
+
+2.4
+
+Verifiable Credentials and General-Purpose Zero Knowledge Proofs . . . . .
+
+13
+
+2.5
+
+Additional Challenges of Implementing Verifiable Credentials . . . . . . . . .
+
+15
+
+3 Cryptography Preliminaries
+3.1
+
+3.2
+
+17
+
+Zero-Knowledge Proofs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+17
+
+3.1.1
+
+Schnorr Identification Protocol
+
+. . . . . . . . . . . . . . . . . . . . .
+
+17
+
+3.1.2
+
+Σ-protocols . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+18
+
+3.1.3
+
+Non-Interactive Zero Knowledge proofs. Fiat-Shamir Transformation
+
+19
+
+3.1.4
+
+Signature Proof of Knowledge for Linear Relations
+
+. . . . . . . . . .
+
+20
+
+3.1.5
+
+BBS Selective-Disclosure Signature . . . . . . . . . . . . . . . . . . .
+
+21
+
+3.1.6
+
+Blind BBS signatures . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+23
+
+Foundational Cryptographic Primitives and Security Assumptions . . . . . .
+
+25
+
+1
+
+3.2.1
+
+Security Assumptions . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+25
+
+3.2.2
+
+Cryptographic Hash Functions . . . . . . . . . . . . . . . . . . . . . .
+
+26
+
+3.2.3
+
+Digital Signatures . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+26
+
+4 System Design
+
+28
+
+4.1
+
+System’s Scope . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+28
+
+4.2
+
+Use-Case Scenarios . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+28
+
+4.2.1
+
+Self-Sovereign Identity Value Propositions . . . . . . . . . . . . . . .
+
+29
+
+4.2.2
+
+Use-Case Scenarios . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+29
+
+4.3
+
+Threat Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+31
+
+4.4
+
+Design Goals . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+33
+
+4.4.1
+
+Privacy Objectives . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+33
+
+4.4.2
+
+Security Objectives . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+34
+
+4.4.3
+
+Operational Objectives . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+35
+
+System Architecture . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+36
+
+4.5.1
+
+Architectural Layers . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+36
+
+4.5.2
+
+Mapping Design Objectives to Architectural Layers . . . . . . . . . .
+
+37
+
+4.5.3
+
+BBS+ as a Core Selective-Disclosure Mechanism . . . . . . . . . . . .
+
+38
+
+4.5.4
+
+Credential Format . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+40
+
+4.5.5
+
+Considering Revocation . . . . . . . . . . . . . . . . . . . . . . . . .
+
+41
+
+4.5.6
+
+Considering Predicate-Disclosure . . . . . . . . . . . . . . . . . . . .
+
+43
+
+4.5.7
+
+System Context Diagram . . . . . . . . . . . . . . . . . . . . . . . . .
+
+43
+
+4.5.8
+
+Interaction Flows . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+44
+
+4.5
+
+5 Prototype Development
+
+50
+
+6 Evaluation
+
+51
+
+2
+
+Chapter 1
+Introduction
+1.1
+
+Project’s Motivation
+
+As more and more services move online, an individual’s digital identity has become a
+central element in enabling secure and trustworthy interactions across domains such as
+e-government, e-commerce, and e-health (Flamini et al., 2024). Digital identity gains additional importance in light of the modern legislative trends that impose mandatory identity
+verification for online resources deemed potentially harmful for children (Roberts, 2025).
+At the same time, data protection and the individuals’ right for privacy is recognised as a
+significant concern within society, with multiple legislation frameworks addressing it, such
+as General Data Protection Regulation in the European Union (General Data Protection
+Regulation 2016) This creates a unique challenge of developing robust digital identity management systems that would provide an efficient and secure way of verifying attributes
+related to one’s identity, while prioritizing data minimisation and user control requirements
+imposed by GDPR (Álvarez, Hölzmer, and Sedlmeir, 2026) One proposed approach to addressing this challenge is the design of privacy-preserving credentials based on a specific class
+of cryptographic protocols known as Zero-Knowledge Proofs (Babel and Sedlmeir, 2023).
+This project aims to design and develop a working proof-of-concept prototype of a Verifiable
+Credential system for higher education institutions, that would allow students to obtain
+digital credentials from the university, and use them to prove some statements about their
+identity in a privacy preserving manner when interacting with various verifiers.
+Specifically, this work aims to address the following research questions:
+RQ1. How can the Self-Sovereign Identity (SSI) paradigm and Zero-Knowledge Proofs be
+applied to design and implement a privacy-preserving digital credential system within
+a higher education identity ecosystem?
+RQ2. What are the practical trade-offs between different selective disclosure mechanisms in
+terms of performance and privacy guarantees?
+RQ3. What is the impact of strict privacy requirements on the complexity and deployment
+feasibility of a digital credential system?
+3
+
+1.2
+
+Roadmap
+
+This work is structured into six chapters. Chapter 2 presents a comprehensive review of
+literature in the domain of privacy-preserving digital credentials. It covers verifiable credentials workflow, selective disclosure mechanisms, and privacy-enhancing technologies, such as
+specific-purpose and general-purpose zero-knowledge proofs. Chapter 3 introduces cryptographic primitives and concepts that are used in this work, such as zero-knowledge proofs,
+digital signatures, and hash functions. Chapter 4 presents use-case scenarios, threat model,
+and design goals of the system. It also presents an overview of the system architecture,
+and testing strategy. Chapter 5 presents the details about the prototype implementation,
+specific design choices and concrete workflows within the prototype. Chapter 6 presents
+the evaluation, including the system performance, system security, and system usability,
+acknowledging system limitations and future work.
+
+1.3
+
+Acronyms
+
+ABAC Attribute-Based Access Control.
+AID Anonymous Identity Identifier.
+ARF Architecture and Reference Framework.
+BBS Boneh-Boyen-Shacham.
+BBS+ Boneh-Boyen-Shacham+.
+CL Camenisch-Lysyanskaya.
+DID Decentralised Identifier.
+eIDAS electronic IDentification, Authentication and trust Services.
+EUDI European Digital Identity.
+EUDIW European Digital Identity Wallet.
+GDPR General Data Protection Regulation.
+IRTF Internet Research Task Force.
+PS Pointcheval-Sanders.
+RFC Request for Comments.
+ROM Random Oracle Model.
+4
+
+SD Selective Disclosure.
+SD-JWT Selective Disclosure JSON Web Token.
+SHVZK Special Honest-Verifier Zero-Knowledge.
+SPK Signature Proof of Knowledge.
+SSI Self-Sovereign Identity.
+VC Verifiable Credential.
+VP Verifiable Presentation.
+W3C World Wide Web Consortium.
+ZK Zero-Knowledge.
+zk-SNARK Zero-Knowledge Succinct Non-Interactive Argument of Knowledge.
+ZKP Zero-Knowledge Proof.
+
+5
+
+Chapter 2
+Literature Review
+2.1
+
+Self-Sovereign Identity
+
+Contemporary literature often views privacy-preserving credentials in the context of the SelfSovereign Identity [SSI] paradigm. SSI is a paradigm that aims to empower users to have
+full control over their personal data (Satybaldy, Ferdous, and Nowostawski, 2024). It allows
+individuals to store and manage digital credentials that they received from various issuers
+while providing holders with full control over what and when they want to disclose to other
+parties (Babel et al., 2025). SSI eliminates the need for a central authority allowing users to
+independently present cryptographically verifiable claims about themselves. Moreover, SSI
+recognises the importance of privacy and empowers individuals to act as custodians of their
+own private information (Satybaldy, Ferdous, and Nowostawski, 2024).
+SSI leverages the concept of a Digital Identity Wallet to establish an open ecosystem for
+authentication and exchange of machine-verifiable identity information delegating the full
+control over the disclosure of identity-related data to users (Babel et al., 2025). The ecosystem consists of four main roles: Issuer, Holder, and Verifier, who are interacting with each
+other and a verifiable data registry as illustrated on Figure 2.1 (Babel et al., 2025; Satybaldy, Ferdous, and Nowostawski, 2024; Patil et al., 2024; Siddiqui et al., 2021; Moriyama
+and Otsuka, 2025; Hoang et al., 2024).
+
+6
+
+Figure 2.1: SSI trust triangle. Adapted from (Babel et al., 2025)
+
+There exists an ongoing research effort aiming at formalising SSI paradigm into a comprehensive architectural framework (Babel et al., 2025). This work adopts one of the most
+recent and comprehensive architectural frameworks presented by Satybaldy, Ferdous, and
+Nowostawski (2024). In their work, researchers articulate the framework through SSI technology stack (Figure 2.2) and SSI governance stack with both stacks divided into 4 logical
+layers.
+
+7
+
+Figure 2.2: SSI Technology Stack. Adapted from (Satybaldy, Ferdous, and Nowostawski,
+2024)
+
+As illustrated in Figure 2.2, the technology stack spans from the underlying Public Utilities
+layer (Layer 1) up to the Application Ecosystems layer (Layer 4). This work is primarily concerned with the Credentials layer (Layer 3), focusing on the privacy-enhancing technologies
+and mechanisms within digital credentials.
+
+2.2
+
+Regulatory Context
+
+Enabling individuals to possess and independently manage digital credentials has been the
+subject of extensive regulatory efforts. The European Union revised the original eIDAS
+framework through the adoption of eIDAS 2.0 establishing a comprehensive legal framework
+8
+
+to set rules and conditions for the development of European Digital Identity Wallets [EUDIWs]. According to eIDAS 2.0, EUDIWs are required to enable users to ”securely request,
+obtain, select, combine, store, delete, share and present” digital credentials ”under the sole
+control of the user” (European Parliament, 2024). EU member states are required to provide
+their citizens with at least one certified EUDIW app by the end of 2026 (Álvarez, Hölzmer,
+and Sedlmeir, 2026). To support member states with the development of EUDIWs the
+European Union has introduced a technical Architecture and Reference Framework [ARF]
+to establish common standards and technical specifications, such as credentials formats,
+trust frameworks and wallet architecture. Despite EUDIWs representing a significant opportunity for improving digital identity management (Babel et al., 2025), formal privacy
+evaluations of ARF indicate that the architecture retains risks to user privacy, i.e. linkability of quasi-identifiers, which could be mitigated with privacy enhancing techniques such as
+Zero-Knowledge Proofs. (Álvarez, Hölzmer, and Sedlmeir, 2026).
+
+2.3
+
+Verifiable Credentials and Selective Disclosure Mechanisms
+
+The ecosystem of digital credentials has significantly evolved since their appearance in the
+1980s. Building on decades of research into anonymous and attribute-based credentials from
+both academia and industry, the World Wide Web Consortium [W3C] published the Verifiable Credentials Data Model as an open standard in 2019 (W3C Verifiable Credentials
+Working Group, 2025; Ramić et al., 2024). A verifiable credential is a tamper-evident attestation whose authorship can be cryptographically verified (W3C Verifiable Credentials
+Working Group, 2025). Holders are able to obtain a digital attestation of some information
+from Issuers in the form of a verifiable credential, and then use the credential to generate
+verifiable presentations of that information and present them to Verifiers. This fundamental lifecycle is depicted on Figure 2.3. Holders can use verifiable presentations to either
+present all the information attested by verifiable credentials, or selectively disclose some
+specific information while concealing the rest. Some selective disclosure mechanisms are designed to provide additional privacy guarantees, such as generation of unlinkable verifiable
+presentations (Flamini et al., 2024; Álvarez, Hölzmer, and Sedlmeir, 2026; Buldini et al.,
+2025).
+
+Figure 2.3: Verifiable credential workflow. Adapted from W3C Verifiable Credentials Working Group (2025)
+
+Selective disclosure is a core privacy-preserving mechanism for digital credentials. It is
+specifically mandated by Article 5a of eIDAS 2.0 (European Parliament, 2024), and is iden9
+
+tified as a key mechanism for data minimisation in the W3C Verifiable Credentials Data
+Model v2.0 (W3C Verifiable Credentials Working Group, 2025).
+Evaluation of cryptographic mechanisms for selective disclosure in digital credentials is a
+subject to an ongoing research effort. Flamini et al. (2024) divide mechanisms for selective
+disclosure into 3 distinct categories, namely atomic credentials, hash-based hiding commitment schemes and selective-disclosure signature schemes. In their work researchers describe
+and evaluate commitment list and Merkle-tree mechanisms as examples of hash-based hiding
+commitment schemes; and CL, BBS, BBS+, PS signatures as examples of selective-disclosure
+signature schemes. Similarly, Ramić et al. (2024) categorise selective disclosure methods
+into atomic credentials, hash-based and signature-based, but also identify an additional
+category of schemes based general-purpose Zero Knowledge Proofs called Zero-Knowledge
+Succinct Non-Interactive Arguments of Knowledge [zk-SNARKs]. Constructions based on
+zk-SNARKs do not disclose attributes in a traditional sense, but allow the Holder to prove
+in Zero-Knowledge that the attributes within the credential comply with certain conditions
+engineered in the form of an arithmetic circuit. In such constructions a verifier does not
+receive the claims in plaintext, but rather obtains a succinct proof that information hidden within the credential complies with the conditions of the circuit (Hoang et al., 2024;
+Watanabe, Chongchitmate, and Cooharojananone, 2025). In comparison, although schemes
+based on selective-disclosure signatures also utilise Non-Interactive Zero-Knowledge proofs,
+disclosed attributes are presented to the verifier in plaintext while hidden attributes are
+proved in zero-knowledge by exploiting the underlying algebraic structure of the signature
+itself (Flamini et al., 2024; Ramić et al., 2024; Buldini et al., 2025). Therefore, selective
+disclosure signatures, such as BBS, CL, PS, are called special-purpose Zero-Knowledge. In
+contrast to previously discussed studies, Salve et al. (2026) divide hash-based schemes in two
+separate categories, namely hash-based and hash-tree based, and considers an encryptionbased schemes as a separate selective disclosure mechanism in which undisclosed claim are
+hidden using encryption algorithms instead of hash functions.
+The research discussed above assess selective disclosure mechanisms in terms of performance, standard maturity and security/privacy guarantees. Buldini et al. (2025) formalised
+a comprehensive set of main security and privacy properties for selective-disclosure mechanisms, namely minimisation, predicate disclosure, unlinkability, unobservability, untraceability, non-transferability and unforgeability. In addition to that, Flamini et al. (2024)
+also evaluated quantum-safety, standardization, support for predicates and threshold issuance, cryptographic agility. Additionally, both Salve et al. (2026) and Buldini et al.
+(2025) evaluated modern open-source implementations of selective-disclosure mechanisms
+against quantitative metrics, such as the total size of verifiable credentials [VC] and verifiable presentations [VP], creation time and verification time, while Flamini et al. (2024) also
+provided theoretical evaluation of those metrics.
+Based on these findings, Table 2.1 consolidates the evaluation metrics into a unified framework, which aims to be applicable to all categories of selective disclosure mechanisms.
+
+10
+
+Table 2.1: Comprehensive evaluation metrics for selective disclosure mechanisms
+Evaluation Metric
+
+Informal Definition
+
+Data minimisation
+
+A verifier learns no information about hidden attributes
+(Buldini et al., 2025, def. 1)
+
+Standardisation
+
+The degree to which a mechanism is adopted in or
+progressing through formal standardisation processes
+(Flamini et al., 2024)
+
+Cryptographic agility
+
+A selective disclosure mechanism offers support for various cryptographic primitives (Flamini et al., 2024)
+
+Post-quantum security
+
+A selective disclosure mechanism is resistant to quantum attacks (Ramić et al., 2024; Flamini et al., 2024)
+
+Efficiency
+
+Evaluation of time required for generation and verification of credentials (Buldini et al., 2025); computational
+cost. (Flamini et al., 2024).
+
+Compactness
+
+The storage and transmission overhead introduced by
+a selective disclosure mechanism, measured by the size
+of verifiable credentials and verifiable presentations.
+(Flamini et al., 2024; Buldini et al., 2025; Ramić et
+al., 2024).
+
+Support for predicates
+
+A selective disclosure mechanism provides the ability
+to prove predicates about hidden attributes, e.g. age ≥
+18, or role = student, etc. (Flamini et al., 2024; Buldini
+et al., 2025, def. 2)
+
+Support for threshold is- A selective disclosure mechanism allows credentials to
+suance
+be issued by multiple issuers sharing the secret key.
+Issuance of the credential requires issuers to agree
+(Flamini et al., 2024).
+Presentation unlinkability
+
+Two colluding verifiers are unable to determine if two
+distinct verifiable presentations were generated by the
+same holder. (def. 3 Buldini et al., 2025; Flamini et al.,
+2024, sec. 6.2.1)
+
+Issuer unobservability
+
+An issuer of the credential is unable to determine when,
+where or to which verifier the credential was presented
+(Buldini et al., 2025, def. 4).
+
+Session untraceability
+
+A credential’s usage across multiple interactions cannot
+be traced by colluding issuers and verifiers (Buldini et
+al., 2025, def. 5).
+
+Non-transferability
+
+A selective disclosure mechanism produces presentations that cannot be replayed or delegated to another
+party (Buldini et al., 2025, def. 6).
+
+Unforgeability
+
+A holder is unable to create or present fraudulent credentials that were not legitimately produced and provided by the issuer (Buldini et al., 2025, def. 7).
+11
+
+Based on the reviewed literature, two selective disclosure mechanisms were chosen for evaluation. Hash-based commitment list approach SD-JWT was selected due to being considered
+mandatory for European Digital Identity wallets (sec. 6.1.1 Flamini et al., 2024; European
+Digital Identity Wallet - European Digital Identity 2026, sec. 5.3.3). BBS/BBS+ selectivedisclosure signatures were chosen due to them being actively adopted in multiple sectors,
+such as healthcare, electronic voting (Ramić et al., 2024), and due to active standardisation
+efforts by W3C including BBS signatures to the Verifiable Credentials Data Model 2.0 (W3C
+Verifiable Credentials Working Group, 2025). In this work, terms BBS and BBS+ are used
+interchangeably since the two share the same core algebraic structure and any BBS+ signature can be turned into a baseline BBS signature (Flamini et al., 2024). The original BBS
+signature scheme was proven to be secure under the q-Strong Diffie-Hellman assumption
+(Tessaro and Zhu, 2023). Both mechanisms achieve data minimisation and unforgeability
+(Buldini et al., 2025, def. 1, def. 7). In terms of standardisation, SD-JWT is officially
+standardised in RFC-9901 (Fett, Yasuda, and Campbell, 2025) while BBS is still an IRTF
+draft (Looker et al., 2026). Both BBS and SD-JWT are specified in W3C VC Data Model
+2.0 (W3C Verifiable Credentials Working Group, 2025).
+Some comparative evaluations of selective disclosure mechanisms indicate that hash-based
+approaches are generally the most efficient and require minimal overhead, while acknowledging that hash-based mechanisms do not provide presentation unlinkability (Flamini et al.,
+2024). On the contrary, BBS signatures are randomised during each presentation achieving presentation unlinkability. Buldini et al. (2025) provide similar results with hash-based
+solutions being the fastest, and BBS signatures being the most privacy-preserving. Experimental evaluations by Salve et al. (2026) confirm these findings. They simulated complete
+W3C Verifiable Credential lifecycle aligning with the VC data model, and reported VP creation times of up to 120 ms for hash-based approaches versus approximately 4560 ms for
+Node.js implementation of BBS with 1024 claims. In terms of compactness, BBS-based VCs
+and VPs are more storage efficient and shrinking in size with disclosed attributes, while
+hash-based credentials grow linearly with each additional attribute (Buldini et al., 2025;
+Salve et al., 2026).
+The choice of mechanism also significantly impacts quantum resistance and cryptographic
+agility. Flamini et al. (2024) indicate that commitment list mechanisms, e.g. SD-JWT,
+can be made quantum resistant, while BBS signatures are not quantum secure due to their
+reliance on pairing-friendly elliptic curves (Tessaro and Zhu, 2023). SD-JWT shows a significantly higher degree of cryptographic agility due to not inherently relying on any specific
+choice of an underlying hash function, while BBS has a specific algebraic structure that
+cannot be trivially swapped for alternative primitives (Flamini et al., 2024). This same
+algebraic structure, however, enables BBS to support predicate proofs through creation of
+additional range proofs on a protocol level, e.g. proving “age ≥ 18” without revealing the
+value, which SD-JWT does not support natively (Buldini et al., 2025; Flamini et al., 2024).
+The main difference is in privacy properties. SD-JWT presentations contain the issuer’s
+original signature and constant hash digests, enabling colluding parties to correlate presentations (Álvarez, Hölzmer, and Sedlmeir, 2026). As a result SD-JWT does not achieve
+presentation unlinkability, and session untraceability (Flamini et al., 2024; Buldini et al.,
+2025; Álvarez, Hölzmer, and Sedlmeir, 2026). BBS generates a fresh, randomised derived
+proof for each presentation, achieving presentation unlinkability and untraceability (Buldini
+et al., 2025; Flamini et al., 2024). BBS also achieves non-transferability through crypto12
+
+graphic holder binding. The evaluation confirms the consistent finding across all reviewed
+literature: no single selective disclosure mechanism dominates across all criteria (Flamini
+et al., 2024; Buldini et al., 2025; Ramić et al., 2024; Salve et al., 2026). SD-JWT excels
+on practical deployment criteria, while BBS excels on privacy properties. However, there
+is one useful feature which is not supported by either BBS or SD-JWT: native support for
+verification of complex predicates. The next section explores how this functionality can be
+achieved with general-purpose ZKPs.
+
+2.4
+
+Verifiable Credentials and General-Purpose Zero
+Knowledge Proofs
+
+General-purpose Zero Knowledge Proofs, such as zk-SNARKs, introduce a new paradigm
+for verification of Verifiable Presentations. Zk-SNARKs allow holders to locally generate
+succinct proofs of their credentials meeting specific conditions, and then send those proofs
+to verifiers along with any disclosed attributes or predicates (Babel and Sedlmeir, 2023).
+Literature suggests that general purpose ZKPs can be seen as a natural solution for verifying
+complex predicates that selective-disclosure signatures like BBS+ or CL would either be
+unable to support, or require significant protocol overhead (Buldini et al., 2025).
+Although survey literature tends to situate zk-SNARKs based constructions as a new category within the broader selective disclosure landscape (Ramić et al., 2024; Salve et al., 2026),
+authors of zk-SNARKs based digital credential frameworks often draw a clear distinction
+between zk-SNARKs based credentials and credentials based on selective-disclosure mechanisms. For example, Hoang et al. (2024) note that BBS+ proofs still disclose some personal
+data in the form of revealed attributes, and suggest zk-SNARKs based solutions are preferable due to ability to completely remove transmission of personal data. In their construction
+verifiers only receive a proof of holder’s credential satisfying required conditions, without
+accessing any underlying attribute values. This approach to enhancing privacy contrasts
+with traditional understanding of selective disclosure in privacy-preserving credentials. As
+shown in Table 2.1, selective-disclosure primarily concerns with data minimisation and presentation unlinkability. The core idea is aligned with principles outlined in General Data
+Protection Regulation (2016), namely ensuring that only the data that is strictly necessary
+is being provided to verifiers. However, despite supporting selective-disclosure in a traditional sense by providing disclosed attributes as public parameters, constructions based on
+zk-SNARKs are often designed to not disclose any personal data at all, while only disclosing what can be referred to as predicates or metadata - information about information.
+For example Watanabe, Chongchitmate, and Cooharojananone (2025) uses general-purpose
+ZKPs as a technique distinct from selective-disclosure mechanisms, allowing for verification
+of threshold predicates in academic transcripts while not revealing any underlying attributes
+other than grades for specific subjects being within concrete boundaries. Threshold predicates allow to determine if the grade is within lower and upper bounds, e.g. higher than
+60 and/or lower than 70. While some selective disclosure signatures, such as BBS or CL,
+provide a mechanism to prove threshold predicates (Flamini et al., 2024), doing so requires
+producing additional range proofs and forwarding them alongside other proofs in Verifiable
+Presentation. On the contrary, zk-SNARKs implement predicate verification natively and
+do not require any protocol-level modifications to add new predicate conditions. This aligns
+13
+
+with the view of Babel and Sedlmeir (2023) who frame general-purpose ZKPs as a means to
+address fundamental shortcomings, such as inability to natively support complex predicates,
+of anonymous credential systems built on purpose-specific ZKPs, such as BBS, CL, or PS
+signatures.
+However, while general-purpose ZKPs provide native support for complex predicates, they
+lack some important properties of specific-purpose ZKP constructions like BBS or CL selective disclosure signatures. For example, selective disclosure signatures are often based
+on algebraic structures called Signature Proof of Knowledge, which are based on constructions similar in nature to Σ-protocols. This inherent reliance on a specific algebraic structure allows selective-disclosure signatures to natively support linked secrets, which is how
+selective-disclosure signatures achieve non-transferability and holder binding while still providing presentation unlinkability (Buldini et al., 2025). In contrast, zk-SNARKs do not
+natively support this feature and require additional protocol steps, introducing extra overhead (Babel and Sedlmeir, 2023). In practice, authors of zk-SNARKs based digital credential frameworks often resort to alternative design choices for ensuring non-transferability
+and holder-binding. For example, systems introduced by Watanabe, Chongchitmate, and
+Cooharojananone (2025) and Hoang et al. (2024) resort to providing a holder’s Decentralised
+Identifier [DID] as a public parameter for zk-SNARK proof verification. While this approach
+does ensure holder-binding, it allows for trivial linkability since every presentation of the
+credential is accompanied with a persistent identifier. Presence of persistent identifiers is
+considered a threat to privacy, as noted by Álvarez, Hölzmer, and Sedlmeir (2026, sec. 4.2,
+Threat case 1).
+Enhancing privacy and addressing linkability concerns in DIDs is an ongoing research effort
+with several solutions proposed. For example, He et al. (2024) suggests a system that
+allows holders to generate seemingly unrelated distinct Proxy Decentralised Identifiers for
+every presentation. Such proxy identifiers can later be associated with Main Decentralised
+Identifiers by regulatory authorities providing accountability. Another example is a system
+proposed by Wang et al. (2024) which leverages ring signatures to hide holder’s public key
+among a ring of holders.
+Apart from the aforementioned privacy trade-offs, performance constitutes another major
+obstacle for the adoption of general-purpose ZKP-based credential systems. For example,
+Hoang et al. (2024) evaluate their system’s proof generation time to be between 26 to 302
+seconds, with average peak memory usage being between 1.23 to 12.27 Gigabytes for a system with up to 10 predicate conditions. Their reported verification time is within 1 to 7
+seconds. Watanabe, Chongchitmate, and Cooharojananone (2025) present a more optimised
+system. In contrast with previous system, their system does not verify credential’s signature
+and revocation status in circuit. Hence zk-SNARKs are only used to verify threshold conditions of attributes hidden as in a Merkle-Tree selective-disclosure approach. Such system
+would be called a ZKP & Hash-based combined approach in taxonomy suggested by Salve
+et al. (2026). Removing the most computation-heavy component - signature verification from the circuit allowed to achieve proof generation time to be between 0.66 to 1.1 seconds,
+and verification time to be close to 32 milliseconds. In comparison, Buldini et al. (2025)
+and Flamini et al. (2024) evaluate pure cryptographic overhead of BBS selective-disclosure
+signatures to require less than 5 ms for proof generation, and under 10 ms for verification. It
+should be noted that these comparisons are not directly equivalent: the zk-SNARK figures
+reflect end-to-end system overhead including circuit compilation and witness generation,
+14
+
+whereas the BBS figures represent pure cryptographic operations measured in isolation.
+Nevertheless, the difference in orders of magnitude illustrates the substantially higher computational cost associated with general-purpose proof systems. It is also evident that even
+when the signature verification is removed from the circuit, zk-SNARKs still tend to perform
+worse than a BBS signature.
+To conclude, general purpose ZKPs natively achieve a highly desirable functionality of proving complex predicates about attributes within the credential. This functionality can be
+leveraged in various scenarios, e.g. academic transcript verification without disclosing any
+actual values of grades in the transcript as demonstrated by Watanabe, Chongchitmate,
+and Cooharojananone (2025). However, if compared with selective disclosure mechanisms
+based on specific-purpose zero-knowledge proofs, such as BBS, CL, or PS signatures, this
+functionality comes at the cost of significantly lower performance and the loss of native
+presentation unlinkability properties. This creates a trade-off between selective-disclosure
+signatures and general purpose ZKPs. While signatures like BBS are highly performant,
+natively provide presentation unlinkability, and offer limited support for predicate verification, general-purpose ZKPs provide native predicate verifications at a cost of reduced
+performance and the absence of native-support for some privacy-preserving properties.
+
+2.5
+
+Additional Challenges of Implementing Verifiable
+Credentials
+
+There are a number of considerations for a practical implementation of Verifiable Credentials
+systems. Wang et al. (2025a) acknowledges the problem that was discussed in a previous
+section: some system designs require providing a holder’s DID as a public parameter for
+holder binding. However, they also identified an additional problem of static attribute
+binding within the credential, which makes updating some attributes within the credential
+impossible without full re-issuance of the credential. For example, a digital academic transcript needs to be reissued if the student takes an additional course (Wang et al., 2025a).
+To address this problem they introduce an Anonymous Identity Identifier [AID] mechanism
+enabling decoupling of identity subjects from attribute content allowing dynamic attribute
+updates.
+Efficient and privacy-preserving credential revocation mechanisms constitute another significant challenge of practically implementing Verifiable Credential systems (Lee, Shin, and
+Choi, 2026). Satybaldy, Ferdous, and Nowostawski (2024) list privacy-preserving credential
+revocation among main challenges of the Credentials Layer of their SSI Technology Stack
+(Figure 2.2). Different revocation mechanisms were proposed, including revocation lists,
+e.g Bitstring Status Lists (W3C Verifiable Credentials Working Group, 2026), and various
+cryptographic accumulator mechanisms. While revocation status lists are efficient and simple to implement, they introduce a static identifier pointing to a unique position in the list,
+which can be exploited to correlate presentations of the credentials (Satybaldy, Ferdous,
+and Nowostawski, 2024). Cryptographic accumulators mitigate this privacy concern due to
+compatibility with Zero-Knowledge Proofs, but introducing additional computational cost,
+memory-heavy tail files, and witness update burden (Lee, Shin, and Choi, 2026). An additional privacy concern arises from the verifiers’ ability to track holders over time based on the
+15
+
+revocation-related metadata, e.g. through saving revocation related information extracted
+from the token and systematically assessing it against publicly available revocation registries
+over periods of time (Rometsch et al., 2025). A system proposed by Ramić et al. (2024)
+addresses privacy concerns using Verifiable Random Functions and Bloom Filters Cascades
+allowing holders to produce distinct revocation tokens valid only for a pre-determined period of time. Such revocation tokens are proved in zero-knowledge to be correctly derived
+from a secret key shared between the issuer and the holder, and a proof is shared to the
+verifier alongside the revocation token. Since only verifiers are required to access the revocation artifact, holders can be offline. However, none of the mechanisms described above
+provide efficient verification with both holder and verifier being offline, and it remains an
+open problem (Satybaldy, Ferdous, and Nowostawski, 2024; Rometsch et al., 2025).
+Verifiable Credentials ecosystem aims to provide an interoperable framework in which credential data models and interactions are standardised (W3C Verifiable Credentials Working
+Group, 2025). In principle, implementations that are compliant with these specifications
+should allow any compliant issuer to issue a credential which can be stored in any compliant digital identity wallet, and presented to any compliant verifier. However, Wang et al.
+(2025b) consider a scenario in which the verifier is located in a jurisdiction different from
+where the credential was issued. In such a scenario, the verifier might not accept the credential, creating a significant limitation. Wang et al. (2025b) introduced the concept of a
+notary, which can verify the original credential, and issue the holder with a new one, which
+should now be accepted by the verifier. However, the authors do not consider revocation
+which can become a significant challenge, since the notary will need to have a mechanism to
+ensure that the credential they have ”notarised” remains valid. Wang et al. (2024) consider
+a different approach to solving universal verification in cross-domain settings. They suggest
+using a ring signature scheme to link holder’s identity and attributes to a holder’s public
+key, which is generated by the issuer and hidden among the ring of other holders’ public
+keys. In their architecture, the verifier shifts from trusting the issuer to trusting that a
+ring of holders contains legitimate keys, achieving greater interoperability. However, such
+approach does not align with the SSI ecosystem (Figure 2.1) in which the trust is anchored
+in the issuer’s cryptographic signature.
+
+16
+
+Chapter 3
+Cryptography Preliminaries
+3.1
+
+Zero-Knowledge Proofs
+
+Zero-knowledge proofs are a class of cryptographic protocols between two communication
+parties, Prover and Verifier. Using a zero-knowledge proof, Prover is able to convince the
+Verifier of the validity of a statement without revealing any information beyond the truth
+of the statement (Schoenmakers, 2025). To demonstrate the idea, consider a situation when
+a person needs to verify their age to access some sort of online platform that requires age
+verification. Instead of uploading a photo of a passport, the person could prove in zeroknowledge that they possess a valid credential issued by the trusted authority and that an
+embedded attribute satisfies a predicate - age ≥ 18, without revealing the credential or the
+exact age.
+
+3.1.1
+
+Schnorr Identification Protocol
+
+For example, consider a Schnorr identification protocol, which allows Prover to prove that
+she knows a discrete logarithm x of a relation y = g x in a multiplicative group Gp of prime
+order p (Schoenmakers, 2025). In zero-knowledge terminology, in the given example, a
+discrete logarithm x is called a witness and represents Prover’s private key. Firstly, Prover
+and Verifier need to agree on public parameters
+pp = (Gp , g, y)
+where y is a public key of the Prover y = g x ∈ Gp , g is a generator of Gp , and p is prime.
+To prove the knowledge of the witness x, Prover samples a value a from Zp uniformly at
+random and then calculates an announcement.
+T = g a ∈ Gp
+After that, Prover sends the announcement T to Verifier, who in turn samples a challenge c
+from Zp uniformly at random. Verifier sends the challenge c to Prover, who in turn computes
+a response
+r = a + cx mod p
+17
+
+and sends it to Verifier. Finally, Verifier is able to check the validity of the proof by verifying
+that the following equation holds:
+?
+gr = T · yc
+(3.1)
+If both parties follow the protocol correctly, then the equation (3.1) always holds, since
+g r = g a+cx
+= g a · (g x )c
+= T · yc
+Therefore, if the protocol is followed correctly and (3.1) holds, then Verifier is convinced
+that the prover knows the witness x.
+Schnorr Identification protocol is secure under the Discrete Logarithm assumption. More
+details on fundamental security assumptions are provided in the section section 3.2.1
+
+3.1.2
+
+Σ-protocols
+
+Schnorr Identification Protocol is an example of a group of protocols known as Σ-protocols.
+According to (Schoenmakers, 2025), a Σ-protocol for a relation R between Prover and
+Verifier is a protocol of the following form
+Prover P
+((v; w) ∈ R)
+
+Verifier V
+(v ∈ V )
+
+T ← α(v; w)
+T
+c ∈R C
+c
+r ← ρ(v; w; c)
+r
+φ(v; T ; c; r) ?
+Figure 3.1: A Σ-protocol between a prover and a verifier
+
+where v ∈ V is a common input to P and V; α, ρ are p.p.t algorithms, and φ is a polynomial
+time predicate. Conversation is accepting if φ(v; w; c; r) holds. Σ-protocol must satisfy the
+following properties:
+Completeness: If both communication parties follow the protocol, then the verifier accepts. For example, in case of Schnorr protocol completeness property is shown in (3.1) .
+Completeness property guarantees that if a prover knows a valid witness, then a verifier will
+always accept.
+Special soundness: There exists a probabilistic polynomial time extractor algorithm E,
+18
+
+such that given a pair of accepting conversations with the same announcement (T ; c; r) and
+(T, c′ , r′ ) always computes a witness satisfying the relation R. In case of Schnorr Identification Protocol, special soundness is satisfied because r = a+cx and r′ = a+c′ x, which means
+′
+. Special Soundness
+that r − r′ = cx − c′ x = x(c − c′ ), so x can be extracted as x = r−r
+c−c′
+property guarantees that if a verifier accepts, then a prover must know a valid witness.
+Special honest-verifier zero-knowledgeness: There exists a probabilistic polynomial
+time simulator algorithm S that given any v and c produces valid conversations (T, c, r)
+with the same probability distribution as real conversations between P and V, where P uses
+any valid witness w. In case of Schnorr Identification Protocol, SHVZK property is satisfied
+by using the following algorithm. A simulator algorithm gets y = g x and challenge c as
+input, then chooses a response r ∈R Zp and calculates an announcement as T = g r (y c )−1 .
+A simulated conversation satisfies completeness
+g r = T · y c = g r (y c )−1 · y c = g r
+SHVZK makes Σ-protocols secure against passive observers due to the fact that the distribution of real conversations is indistinguishable from the distribution of the conversations
+produced by the simulator. Hence, the passive observer cannot obtain any new information
+from conversation transcripts other than what she could have had simulated before observing the conversation at all.
+
+3.1.3
+
+Non-Interactive Zero Knowledge proofs. Fiat-Shamir Transformation
+
+As shown in fig. 3.1, a Σ-protocol is an interactive protocol that requires three rounds of
+interactions between a prover and a verifier. However, any Σ-protocol can be made noninteractive with the technique known as Fiat-Shamir transformation. Fiat-Shamir transformation substitutes a challenge c with the output of a hash function, which inputs an
+announcement a, and some additional context, i.e public parameters pp (Flamini et al.,
+2024).
+c = H(a|context)
+(3.2)
+The security of such transformation relies on an underlying hash function behaving as a Random Oracle, and providing uniformly distributed outputs for each distinct input. Therefore,
+Σ-protocols transformed via Fiat–Shamir are provably secure only in the Random Oracle
+Model. More details about cryptographic hash functions are provided in section section 3.2.1.
+Fiat-Shamir transformation allows converting Σ-protocols into digital signature schemes
+(Boneh and Shoup, 2023). Given a Σ-protocol for relation R, a prover can produce a
+signature σ as follows. Firstly, a prover needs to compute a commitment T in the same
+way as in fig. 3.1, T ← α(v; w). Then the prover computes a challenge c = H(a|m) and a
+response r = ρ(v, w, c). Now, a prover can send a signature σ = (T, r) and a message m to
+the verifier. To verify the signature, the verifier needs to compute c = H(a|m) and verify
+that (T, c, r) is an accepting conversation.
+
+19
+
+3.1.4
+
+Signature Proof of Knowledge for Linear Relations
+
+Any Σ-protocol can be used to prove linear relations among group elements (Boneh and
+Shoup, 2023). This is an important mechanism often used in privacy-preserving digital
+credentials to prove the knowledge of multiple undisclosed attributes [witnesses]. Consider
+a sequence of witnesses (w1 , w2 , ..., wn ) for relations (y1 = g1w1 , y2 = g2w2 , ..., yn = gnwn ) in a
+cyclic multiplicative group Gp of prime order p, where (g1 , g2 , ..., gn ) are distinct generators.
+A prover P can prove knowledge of all witnesses (w1 , w2 , ..., wn ) that satisfy the relation
+y=
+
+n
+Y
+
+giwi
+
+(3.3)
+
+i=1
+
+as follows. Firstly, P samples
+a1 , a2 , ..., aj from Zp uniformly at random. Then she computes
+Q
+an announcement T = ni=1 giai and sends it to V. A verifier V samples a challenge c ∈R Zp
+uniformly at random and sends it back to P who computes a sequence of responses (ri =
+ai + cxi ) for i = (1, 2, ..., n). P then sends all responses (r1 , r2 , ..., rn ) to V. To verify the
+validity of the proof, V needs to check if the following relation holds
+n
+Y
+
+?
+
+giri = T · y c
+
+(3.4)
+
+i=1
+
+Completeness holds as follows
+n
+Y
+i=1
+
+giri =
+
+n
+Y
+
+giai g cxi
+
+i=1
+
+=T ·(
+
+n
+Y
+
+gixi )c
+
+i=1
+c
+
+=T ·y
+
+Applying Fiat-Shamir transformation to the scheme described above allows to create a
+signature proof of knowledge [SPK] for all relations R that can be written as in eq. (3.3)
+(Flamini et al., 2024). In SPK, a challenge is obtained as
+c = H(public parameters|announcement)
+
+(3.5)
+
+An SPK signature σ = (T, r1 , r2 , ..., rn ) for messages (m1 , m2 , ..., mn ) can be verified by computing a challenge as in eq. (3.5), and then verifying that (T, c, r1 , r2 , ..., rn ) is an accepting
+conversation.
+In this work, a generic notation for a Signature Proof of Knowledge was adopted as given
+in Flamini et al. (2024) and Moriyama and Otsuka (2025). The notation is given below
+
+π ∈ SP K{(w1 , . . . , wn ) : y =
+
+n
+Y
+
+giwi }
+
+(3.6)
+
+i=1
+
+where π represents Q
+a Signature Proof of Knowledge of private witnesses w1 , . . . , wn that
+satisfy relation y = ni=1 giwi , where y is a public value, and gi are distinct generators of Gp .
+20
+
+SPK is non interactive, so an entity that generates SPK needs to calculate necessary challenge values using Fiat-Shamir transformation with pre-agreed Hash function and format.
+After applying transformation, an entity that generates SPK can compute a set of responses
+r1 , . . . , rn . Hence, Signature Proof of Knowledge consists of following values
+π = (T, r1 , . . . , rn )
+
+(3.7)
+
+where T is an announcement and r1 , . . . , rn are responses for each witness w1 , . . . , wn . A
+Verifier can verify the signature by obtaining public parameters and verifying that Equation (3.4) holds.
+
+3.1.5
+
+BBS Selective-Disclosure Signature
+
+Boneh-Boyen-Shacham group signature can be used to obtain selective disclosure secure
+under the q-strong Diffie-Hellman Assumption (Flamini et al., 2024). It relies on Elliptic
+Curve pairings and requires three groups G1 =< g1 >, G2 =< g2 >, G3 =< g3 > of the same
+prime order p, satisfying the pairing
+e : G1 × G2 → G3
+
+(3.8)
+
+During the set-up phase, an Issuer and a Holder agree on public parameters
+pp = (p, G1 , g1 , G2 , g2 , G3 , g3 , e, h1 , . . . , hm )
+
+(3.9)
+
+where h1 , . . . , hm is a random vector of elements sampled from G1 , and m is the amount of
+attributes to be signed.
+During key generation, the issuer selects a random secret key skissuer = x ∈R Z∗p , and
+computes pkissuer = g2x = w ∈ G2 . This secret key will be used to sign multiple verifiable
+credentials for various holders, while pkissuer is made public and published on a verifiable
+data registry.
+To sign an ordered list of messages M = (a1 , . . . , am ) ∈ Zm
+p the issuer firstly randomly
+samples a signature randomness b ∈R Zp and then computes
+C = (g1
+
+m
+Y
+
+hai i ) ∈ G1
+
+(3.10)
+
+i=1
+
+and then
+
+1
+
+A = C b+x
+
+(3.11)
+
+and outputs the signature σ = (A, b) ∈ G1 × Zp .
+A holder is provided with the public key w, ordered list of attributes M , signature σ and
+public parameters pp. A holder can verify the signature by checking that the following
+relation holds
+e(A, wg2b ) = e(C, g2 )
+21
+
+(3.12)
+
+If the protocol is followed correctly, the Equation (3.12) always holds
+b+x
+
+1
+
+e(A, wg2b ) = e(C b+x , g2b+x ) = e(C, g2 ) b+x = e(C, g2 )
+The holder can generate a Verifiable Presentation. Firstly, they need to choose a subset of
+attributes to reveal, DA ⊂ I, where I = (1, 2, ..., m) an ordered list of attribute indices.
+Then the holder needs to compute randomness r ∈R Zp and then compute
+Y
+CDA = g1
+hai i
+(3.13)
+i∈DA
+
+and a Non-Interactive Zero-Knowledge Proof
+
+r
+
+
+A = A −b
+B = CrA n
+
+−b Q
+
+r
+π ∈ SP K (r, b, {ai ∈
+/ DA}) : B = CDA
+A
+
+(3.14)
+i
+hra
+i
+i∈DA
+/
+
+o
+
+where π is a Signature Proof of Knowledge with private witnesses r, b, {ai ∈
+/ DA} constructed
+as described in Section 3.1.4
+The Verifiable Presentation is given as
+V P = (w, pp, A, B, π, DA, ai ∀i ∈ DA)
+
+(3.15)
+
+A Verifier can determine the validity of Verifiable Presentation by first verifying π as described in Section 3.1.4, and then verifying that the VP is bind to an issuer’s public key by
+ensuring that the following relation holds
+e(A, w) = e(B, g2 )
+
+(3.16)
+
+If the protocol is followed correctly, Equation (3.16) always holds
+−b
+
+e(B, g2 ) = e(C r · A , g2 )
+−b
+
+= e(C r , g2 ) × e(A , g2 )
+b+x
+
+= e(A r
+
+·r
+
+b
+
+, g2 ) × e(A, g2 )−b
+
+x
+
+= e(A · A , g2 ) × e(A, g2 )−b
+x
+
+b
+
+= e(A , g2 ) × e(A , g2 ) × e(A, g2 )−b
+= e(A, g2 )x × e(A, g2 )b × e(A, g2 )−b
+= e(A, g2 x )
+= e(A, w)
+BBS+ signature is provably-secure extension of BBS signature that introduces additional
+random scalar during the signing process (Flamini et al., 2024) which randomises the commitment to the signed messages during the signing process. BBS+ also changes proof-ofknowledge protocol introducing different randomisation and verification procedures. However, the core idea remains the same: verification of signatures and presentations relies on
+bilinear pairings, while hidden attributes are proven in Zero-Knowledge using a Signature
+Proof of Knowledge (Flamini et al., 2024).
+22
+
+3.1.6
+
+Blind BBS signatures
+
+A blind signature is a special type of digital signature in which the issuer is unable to
+learn the content of the signed message (Xinglin and Fei, 2024). Blind signatures are used
+under assumption that the requester can obtain a valid signature on the document while
+concealing the information within the document (Alown, Kiraz, and Bingol, 2025). In
+verifiable credentials blind signature schemes can be used to prevent the issuer from learning
+the link secret, which is used to bind the credential to a holder.
+Currently, there exist two distinct approaches for blinding BBS signatures. One approach is
+specified in IRTF Blind BBS Signatures draft (M. Lodder, T. Looker, and A. Whitehead,
+2026), and another approach is specified in Digital Identity Foundation’s Blind Signatures
+extension of the BBS Signature Scheme draft (Kalos and Bernstein, 2025).
+
+IRTF Approach. BBS signatures of σ = (A, b) form
+In this approach, a BBS signature is of the form described in Section 3.1.5. In order to
+obtain a blind signature, a holder selects a list of messages they want issuer to sign blindly
+Mhidden and a list of messages they want to reveal Mreveal . The indices of Mhidden are an
+ordered list Ih = (i1 , i2 , . . . , ik ) where k = |Mhidden |. The same applies to Mreveal with
+Ir = (j1 , j2 , . . . , jl ) where l = |Mreveal |. So I = Ir ⊔ Ih .
+Then the holder chooses a generator gs ∈ G1 , and a random scalar r ∈ Zp and computes a
+commitment
+Y
+(3.17)
+C ′ = gsr ·
+hai i .
+i∈Ih
+
+and a SPoK of all hidden messages and r
+(
+π ∈ SP K
+
+)
+
+(r, {ai ∈ Mhidden }) : C ′ = gsr ·
+
+Y
+
+hai i
+
+(3.18)
+
+i∈Ih
+
+and forward C ′ , π, Ih , Ir , Mreveal to the issuer.
+In turn, the issuer verifies π and computes
+Y
+Y
+Y
+Y
+C = g1 ·
+hai i · C ′ = g1 ·
+hai i · gsr ·
+hai i = g1 · gsr ·
+hai i
+i∈Ir
+
+i∈Ir
+
+i∈Ih
+
+(3.19)
+
+i∈I
+
+and then signs as a regular BBS signature
+1
+
+A = C b+x
+
+(3.20)
+
+producing σ = (A, b) and returning it to the holder.
+Interestingly, Equation (3.19) is structurally identical to Equation (3.10), with the only difference being the inclusion of gsr term. Now, the holder can treat σ as a regular BBS signature
+for messages M with an additional random scalar message r. When generating verifiable
+presentations, the holder will treat r as a hidden attribute. Therefore, this approach does
+not require unblinding, but it increases the amount of attributes by 1.
+23
+
+The issuer never learns the values of hidden attributes Mhidden or the random scalar r, values
+of whose are proven in Zero-Knowledge using Signature Proof of Knowledge described in
+Section 3.1.4. The only information the issuer learns is the list of revealed attributes Mreveal
+and the commitment C ′ , which is a commitment to the hidden attributes and the random
+scalar.
+One key challenge here is deterministically correlating the indices of attributes and generators. IRTF draft specifies following deterministic ordering of attributes:
+(Mrevealed , r, Mhidden ) = (m1 , . . . , mi , r, mi+1 , . . . , mn )
+
+(3.21)
+
+where m1 , . . . , mi = Mrevealed , r is a random scalar, and mi+1 , . . . , mn = Mhidden .
+
+DIF Approach. BBS+ signatures of σ = (A, b, s) form
+DIF approach is structurally different from IRTF approach. In DIF approach, a BBS+
+signature is of the form σ = (A, b, s) where s is an additional random scalar added as a
+message by the issuer during signing. Hence, in BBS+ signatures the issuer signs
+Y
+(3.22)
+C = g1 · hs0 ·
+hai i
+i∈I
+
+Similarly to IRTF approach, the holder first commits to the hidden attributes and the
+random scalar r
+Y
+hai i
+(3.23)
+C ′ = hr0 ·
+i∈Ih
+
+and generates a SPoK
+)
+
+(
+π ∈ SP K
+
+(r, {ai ∈ Mhidden }) : C
+
+′
+
+= hr0 ·
+
+Y
+
+hai i
+
+(3.24)
+
+i∈Ih
+
+and forward C ′ , π, Ih , Ir , Mreveal to the issuer.
+The key difference from IRTF approach is that the generator h0 used in the commitment is
+the same generator that the issuer will use for a random scalar s in the signature as shown
+in Equation (3.22).
+The issuer verifies π and computes
+Y
+Y
+Y
+C = g1 · hs0 ·
+hai i · C ′ = g1 · hs0 ·
+hai i · hr0 ·
+hai i
+i∈Ir
+
+i∈Ir
+
+(3.25)
+
+i∈Ih
+
+1
+
+and signs A = C b+x producing σ = (A, b, s), and forwards σ to the holder.
+Similarly to IRTF approach, produced BBS+ signature σ = (A, b, s) contains random scalar
+r. However, since BBS+ signature by construction includes another random scalar s, r can
+be absorbed into s by using the same generator h0 for both r and s. Equation (3.25) can
+be transformed to
+Y
+C = g1 · hs+r
+·
+hai i
+(3.26)
+0
+i∈I
+
+24
+
+The holder can compute s′ = s + r and the signature σ = (A, b, s) becomes σ = (A, b, s′ ) in
+which r is absorbed into s′ . This process is known as unblinding. Subsequently, the holder
+can use σ = (A, b, s′ ) to generate valid verifiable presentations.
+Similarly to IRTF approach, the issuer only learns revealed messages Mrevealed and the
+holder’s commitment C ′ . Random scalar r and hidden attributes Mhidden are proved in
+Zero-Knowledge using SPoK.
+
+3.2
+
+Foundational Cryptographic Primitives and Security Assumptions
+
+3.2.1
+
+Security Assumptions
+
+In practice, the security of public-key cryptosystems generally reduces to some well-established
+mathematical problems that are widely believed to be computationally intractable (Katz and
+Lindell, 2020). If the problem of breaking a cryptosystem reduces to specific and established
+hardness assumptions, such cryptosystem is referred to as provably secure. Several examples
+of well-established hardness assumptions are presented below (Schoenmakers, 2025, p. 23).
+The Discrete Logarithm assumption. In a cyclic group < g >, it is hard to compute
+x = logg h given h = g x .
+The Computational Diffie-Hellman assumption. In a cyclic group < g >, it is hard
+to compute g xy given individual elements g x and g y .
+The Decisional Diffie-Hellman assumption. In a cyclic group < g >, it is hard to
+distinguish g xy from a random element g z given individual elements g x and g y .
+The RSA assumption. (Z/N Z)∗ is a multiplicative group where N is a product of two
+distinct primes p, q of bit length k. Let e be an integer such that gcd(e, φ(N )). Given
+−1
+y = xe ∈ ZN , it is hard to compute x = y e for a sufficiently large k.
+In fact, RSA assumption does not hold if attackers are able to find an inverse e−1 mod φ(N )
+where φ is a Euler’s totient function. Finding φ is as hard as factoring N , since
+φ(N ) = (p − 1)(q − 1) = N (p + q) + 1
+In fact, Integer factorisation is also considered a hard problem for semi-prime integers N
+that are products of large prime factors p, q. However, the RSA assumption is considered
+−1
+to be stronger than integer factorisation since the ability to find x = y e
+mod N does not
+necessarily imply the ability to factor N . In principle, there could exist algorithms that
+invert RSA without performing factorisation.
+BBS signatures are secure under q-strong Diffie Hellman assumption (Tessaro and Zhu,
+2023). Given G1 and G2 as two cyclic groups of prime order p, and g1 , g2 as generators of G1
+and G2 respectively, the q-strong Diffie Hellman assumption states that it is computationally
+2
+q
+1/(x+c)
+hard to output the pair (g1
+, c) from the given (q + 3)-tuple (g1 , g1x , g1x , . . . , g1x , g2 , g2x ),
+where x, c ∈ Zp (He et al., 2024).
+
+25
+
+3.2.2
+
+Cryptographic Hash Functions
+
+Formal definitions (Katz and Lindell, 2020, p. 154) consider hash functions to consist of
+two probabilistic algorithms (Gen, H ) where Gen produces a key k, which is then used by
+H to produce an output of specific length defined by the length of a security parameter
+passed to Gen. However, in practice, cryptographic hash function algorithms are generally
+deterministic, unkeyed and produce fixed-length message digests.
+A cryptographic hash function can be viewed as a polynomial-time algorithm which takes
+an arbitrary length string m ∈ {0, 1}∗ , and produces a message digest h = H(m) ∈ {0, 1}n ,
+where n is a fixed output length for the algorithm H. Hash functions must satisfy preimage
+resistance and collision resistance security properties.
+Preimage Resistance requires it to be computationally infeasible to identify any input
+m such that H(m) = h given a hash value h. There is also a stronger notion of Second
+Preimage Resistance which requires it to be computationally infeasible to find a second
+message m′ such that H(m) = H(m′ ) given a message m.
+Collision Resistance requires it to be computationally infeasible to find two distinct inputs
+m1 , m2 ∈ M that H(m1 ) = H(m2 ).
+A typical application of cryptographic hash functions is the detection of modifications
+(Menezes, Van Oorschot, and Vanstone, 1997, p. 324), i.e. when a hash function is used
+to obtain a message digest which uniquely maps to the message, and then this digest is recomputed and compared against the original value to verify that the message has not been
+altered. However, another important application of hash functions arises in the context of
+a Random Oracle. The Random Oracle Model [ROM] is an idealised framework in which
+cryptographic hash functions are viewed as being truly random, providing uniformly distributed and independent outputs for each distinct input (Dodis et al., 2024). In practice,
+all cryptosystems that rely on cryptographic hash functions being truly random functions,
+including Σ-protocols with Fiat-Shamir transformation, are shown to be provably secure
+only in ROM. However, security in ROM does not directly imply security with real-world
+hash functions (Dodis et al., 2024). For that reason, cryptographic protocols relying on
+output of hash functions being random are said to be secure under the Random Oracle
+assumption.
+
+3.2.3
+
+Digital Signatures
+
+Digital Signatures are an asymmetric cryptography primitive that provides integrity, origin
+authentication, and non-repudiation (Katz and Lindell, 2020, ch. 12). A digital signature
+scheme consists of three algorithms (Gen, Sign, V erif y). Similarly to asymmetric encryption schemes, Gen produces a key-pair (sk, pk). A signing algorithm takes a private key sk
+and a message m ∈ M as input, and produces a signature σ = Sign(m, sk). A verifying
+algorithm V erif y takes a public key pk, a message m, and a signature σ as input, and
+outputs a bit b = {0, 1} where 1 means that the signature is valid, and 0 means that the
+signature is invalid. A digital signature scheme must satisfy the correctness property.
+V erif y(pk, m, Sign(sk, m)) = 1
+A digital signature scheme is called secure, or unforgeable, if no probabilistic polynomial26
+
+time adversary, given access to a signing oracle, can produce with non-negligible probability
+a valid signature on a new message which was not previously signed (Katz and Lindell,
+2020, p. 443). Digital signatures can be based on various hardness assumptions, such as
+assumptions based on RSA, Diffie-Hellman or Discrete Log problems.
+
+27
+
+Chapter 4
+System Design
+4.1
+
+System’s Scope
+
+The main objective of the project is to develop a working prototype of an identity system
+based on verifiable credentials with the focus on privacy-preserving technologies. Although
+the main focus of the project is on verifiable credentials and privacy, the implementation
+of the prototype requires additional infrastructure in order to be self-contained and demonstrable. Such infrastructure includes digital wallet application, verifiable data registries,
+issuer and verifier infrastructure. As a result, the components mentioned above will be
+implemented as mock-ups and their security is not considered within the threat model in
+Section 4.3 or design objectives in Section 4.4.
+The scope of the prototype evaluation is therefore limited to the Credentials Layer of the SSI
+technology stack illustrated in Figure 2.2, and only considers the following components: credential data formats, cryptographic proofs, credential exchange protocols, and revocation
+mechanisms. These concrete scope boundaries allow the project to focus on the evaluation of trade-offs between usability, security and privacy of different verifiable credentials
+technologies in a threat model that assumes that underlying infrastructure is secure and
+tamper-proof.
+
+4.2
+
+Use-Case Scenarios
+
+This section explores the value that adopting the SSI paradigm brings to Holders, Issuers,
+and Verifiers. Then, key strengths of SSI identified in value statements are applied to define
+a set of use-case scenarios that the project will aim to facilitate.
+
+28
+
+4.2.1
+
+Self-Sovereign Identity Value Propositions
+
+A detailed review of SSI value propositions was presented by Babel et al. (2025). A summary
+of the key strengths provided by SSI model is given in the Table 4.1.
+Table 4.1: Key value propositions of SSI. Adapted from Babel et al. (2025)
+Affected Value Proposition
+Party
+
+Description
+
+Issuers
+
+Efficiency increase and
+risk reduction
+
+SSI significantly reduces the amount of interactions
+between issuers and holders, and minimises interactions between issuers and verifiers. Once a credential is provided to the holder, all further interactions with the credential, including secure storage and generation of verifiable presentations, is in
+direct control of the holder. Hence, issuers are not
+required to share any aspects of holders’ identities
+significantly reducing the liabilities.
+
+Holders
+
+Control and Usability
+
+Holders gain direct control over which aspects of
+their identities they want to disclose. User-centric
+design of SSI based applications provides better
+user experience and usability.
+
+Verifiers
+
+Verifiability, Compli- SSI based systems provide a machine-readable creance, and Cost Reduc- dentials that can be automatically validated reduction
+ing the amount of paperwork and manual checks
+while providing better overall security. Additionally, SSI prioritises user control over data reducing
+compliance risks and supporting privacy-by-design
+paradigm.
+
+As shown in Table 4.1, key strengths of SSI based systems are in the automatisation of
+credential verification, and empowering holders of the credentials to have direct control over
+their identity. These key strengths motivate several practical interaction scenarios presented
+in the next section.
+
+4.2.2
+
+Use-Case Scenarios
+
+The higher education sector and the university environment facilitate a broad ecosystem of
+identity interactions affecting a number of individuals: students, staff, and external verifiers.
+This complex environment makes it an ideal context for evaluating a privacy-preserving SSI
+system implementation. All use-case scenarios explored within this work are within the
+university setting, where the university represents a trusted issuer of verifiable credentials,
+and students are holders of such credentials containing a variety of attributes related to
+their identity.
+29
+
+Some scenarios presented below are marked as optional due to the technical complexity
+of their implementation, and absence of universally agreed and standardised approaches
+to their implementation as was shown in Chapter 2. The project will aim to implement
+necessary functionality supporting optional scenarios where possible. If the implementation
+of optional functionality is deemed impossible within the timeframe of the project, a theoretical discussion and a showcase of implementation attempts will be provided. The core
+functionality of the project is focused on the first three scenarios.
+
+Scenario 1. Credential Issuance
+Actors: Holder(Student), Issuer(University).
+Scenario: A student requests a verifiable credential representing their identity within the
+university. A university generates a verifiable credential containing several attributes of
+holder’s identity, e.g. first name, last name, date of birth, name of the course. A verifiable
+credential is digitally signed by the university and issued to the student. A student confirms
+the validity of the credential upon receipt.
+A mechanism of initial verification of holders’ identities is out of scope of this project. In the
+university setting we can assume that the credential is issued based on manual verification of
+student’s identity documentation, e.g. passport, enrolment status letter, etc. Additionally,
+the means for secure storage of the credential is out of scope for this project. It can be
+assumed that the credential is stored in a secure Digital Identity Wallet provided by the
+university or a certified third party.
+
+Scenario 2. Selective Disclosure
+Actors: Holder(Student), and internal or external Verifiers, such as a university library
+system, classroom access control system, or an online service requiring confirmation of a
+student status.
+Scenario: A verifier requests a proof of one or multiple specific attributes stored within
+student’s credential, for example student’s enrolment status, such as Enrolled or Alumni. A
+student creates a verifiable presentation that selectively discloses the requested attributes
+while keeping all other attributes cryptographically hidden. The process of creating a VP
+is seamless to the student, and is initiated by a simple interaction with a system’s interface.
+The student clearly sees which attributes they are to be disclosed, and is in complete control
+of deciding whether to disclose them. The issuer of the credential is not involved in the
+process.
+
+Scenario 3. Verification and Attribute-Based Access Control
+Actors: Holder(Student), and Internal or external Verifiers.
+Upon requesting a proof of certain identity attributes and receiving a verifiable presentation,
+30
+
+the verifier validates the cryptographic proof to confirm that the disclosed attributes originate from a valid credential issued by a university. The format of the verifiable presentation
+allows for automated verification and facilitates Attribute-Based Access Control (ABAC),
+e.g. a classroom door for a Computer Science laboratory automatically unlocks upon checking student’s current enrolment status and the programme of study being Computer Science.
+The issuer of the credential is not involved in the process.
+
+Scenario 4 (Optional). Predicates
+Actors: Holder(Student), and Internal or external Verifiers.
+A verifier requests a proof of some identity attributes complying with a certain predicate,
+e.g. a student being at least 18 years old. A student generates a verifiable presentation
+that contains a proof of a predicate and does not disclose the actual value of the attribute,
+e.g. a proof of student being older than 18 without disclosing the actual age of the student.
+Upon the receipt of the proof, a verifier validates the proof and learns no information except
+for the student’s identity matching a specific predicate. The issuer of the credential is not
+involved in the process.
+
+Scenario 5 (Optional). Revocation
+Actors: Issuer(University), Holder(Student), and Internal or external Verifiers.
+Due to some circumstances, e.g. loss of the credential, student’s misconduct, or withdrawal,
+the university may decide to revoke the credential. A university revokes the credential
+using the available mechanism, rendering the affected student unable to pass verification
+by verifiers. A revocation mechanism allows verifiers to determine a change in a revocation
+status of the credentials within a certain time period determined by a specific mechanism
+implementation. The student is either notified by traditional means or through a dedicated
+revocation status update mechanism in their digital identity wallet instance. The mechanism
+of notifying students about credential revocation is out-of-scope for this project.
+
+4.3
+
+Threat Model
+
+The following section describes adversarial model and trust assumptions.
+The format of adversary capabilities specification follows the work of Rometsch et al. (2025)
+and Zhang et al. (2025), but shifts the focus from credential revocation to a more general
+scope of identity verification.
+
+31
+
+Issuer
+Issuer is assumed to be honest-but-curious. It correctly follows credential issuance and
+revocation protocols, but may attempt to infer some additional information about holders,
+e.g. credential usage patterns. In the higher education settings of the given project, the
+University may be curious to determine how often, where and when students use their
+credentials. The instances of malicious issuers that include attempts to issue credentials to
+non-existent individuals or to abuse revocation mechanism, are out of scope for this project.
+Additionally, the project does not consider scenarios where the issuer’s cryptographic keys
+are compromised.
+
+Holder
+Holder is assumed to be untrusted. Holders are expected to attempt credential forgery, to
+change or fabricate some attributes of their identity, and/or to attempt to use an expired
+credential. Holders may also attempt to share their credentials with other unauthenticated
+parties. Additionally, malicious holders may attempt to replay valid presentations used
+previously by them or other holders.
+
+Verifier
+Verifier is assumed to be honest-but-curious. Verifiers follow verification protocol correctly,
+but may attempt to infer some additional information about holders beyond the disclosed
+attributes. Verifiers may attempt to correlate presentations of credentials, or overcollect
+information about holders with the intent to leverage it for surveilance of holders over time.
+Verifiers may engage in collusion with other verifiers to infer additional information about
+holders. The instances of verifiers colluding with issuers is out-of-scope of this project.
+
+Passive Observers and Third Parties
+Traditional passive observers, e.g. eavesdroppers, are not considered within the scope of
+this project. This project’s focus is within the scope of verifiable credentials, and traditional
+passive observers are addressed by different cryptographic primitives, e.g. Transport Layer
+Security. However, the project considers presence of third parties that are not directly
+involved in the communication between holders, issuers and verifiers, but are capable of
+observing public registries, such as revocation lists, with the intent of deriving some information about holders’ identities. Any instance of a public registry is assumed to be trusted
+and tamper-proof.
+
+32
+
+4.4
+
+Design Goals
+
+This section explores various objectives that the prototype of the system should aim to
+achieve, including privacy, security, and operational objectives. Although all the objectives
+listed below are desirable, the final version of the prototype may not achieve all of them, or
+may only achieve them to a certain extent, which will be evaluated in Chapter 6. Objectives
+presented below are specifically chosen to be applicable within use-case scenarios defined in
+Section 4.2.2, and a threat model defined in Section 4.3.
+
+4.4.1
+
+Privacy Objectives
+
+Based on the reviewed literature, there are several key privacy objectives that the prototype
+of the system needs to meet in order to be considered privacy-preserving.
+
+PO-1: Selective Disclosure
+As was discussed in Chapter 2, selective disclosure is a core privacy-preserving mechanism
+within the verifiable credentials ecosystem. Therefore, the prototype system must facilitate
+a selective disclosure functionality, which is viewed as an ability of holders to sovereignly
+decide which attributes of their identity to disclose, and which to prove in zero-knowledge.
+This privacy objective protects holders from revealing unnecessary identity information to
+verifiers, and supports the core SSI principle of data minimisation.
+
+PO-2: Unlinkability of Presentations
+A verifier or a group of colluding verifiers should not be able to determine with non-negligible
+probability that two separate verifiable presentations were generated by the same holder. It
+is important to note that this privacy requirement does not apply to cases where verifiers
+are able to infer the holder’s identity solely based on the disclosed attributes that directly
+link to identity, e.g. full name, student number, etc.
+
+PO-3: Blind Issuance
+A system should allow holders to have some attributes within the credential to be signed by
+the issuer without the issuer learning the actual values of the attributes. This functionality
+facilitates support for linked secrets which are only known to the holder and ensures privacypreserving holder-binding for verifiable presentations.
+
+33
+
+PO-4: Issuer Unobservability
+A system must not facilitate a mechanism for an issuer to determine when, where, or to
+which verifier the credential was presented. This privacy objective prevents issuers from
+learning additional information about holders, such as credential usage patterns.
+
+PO-5: Predicate Disclosure
+To support advanced privacy-preserving use-cases as described in Section 4.2.2 (Scenario 4),
+the system should provide support for predicate disclosure allowing holders to generate a
+proof of their identity attributes complying with a certain predicate without disclosing the
+actual value of the attribute. Achieving this objective will allow to address the scope limitation of Unlinkability of Presentations objective, as holders will be able to prove properties
+of their identity attributes without revealing the attributes themselves, limiting the ability
+of verifiers to infer persistently identifiable information about holders based on disclosed
+attributes.
+
+PO-6: Privacy in Public Registries
+When a system requires to store information in some sort of a public registry, e.g. published
+revocation lists, cryptographic accumulators, or any other sort of a public data structure,
+the system should be designed in a way that prevents passive observers of public registries
+from inferring identity information about holders by observing registries over time.
+
+4.4.2
+
+Security Objectives
+
+Security objectives for a privacy-preserving verifiable credentials system include general security objectives applicable to any cryptographic systems, such as integrity and authenticity,
+and VC-specific security objectives that were discussed in Chapter 2.
+
+SO-1: Integrity and Authenticity
+Verifiable credentials and verifiable presentations must be directly linked to the issuer’s
+public key. Once the credential is digitally signed by the issuer, no entity except for the
+issuer should be able to modify the attributes within the credential, or forge a new valid
+signature for a credential that was not previously signed by the issuer. Additionally, the
+holder should not be able to generate a valid verifiable presentation with the attributes that
+are different from the attributes within the credential. This security objective addresses the
+threat of untrusted holders attempting credential tampering and forgery.
+
+34
+
+SO-2: Holder Binding
+The system should contain a mechanism that ensures that only the legitimate holder of the
+credential should be able to generate a valid verifiable presentation. Achieving this objective
+prevents credential sharing and provides verifiers with a reassurance that the presenter of
+the credential is a legitimate holder.
+
+SO-3: Replay Resistance
+The system should provide a mechanism to prevent verifiers from accepting replays of previously generated verifiable presentations as valid. In practical terms, meeting this security
+objective requires a freshness mechanism to ensure that verifiable presentations are bound to
+a specific interaction between holder and verifier. This security objective prevents malicious
+holders from re-presenting old verifiable presentations.
+
+SO-4: Revocation Mechanism
+The system should allow issuers to revoke credentials in a timely manner. Additionally,
+verifiers should have a mechanism to determine if the credential presented to them is valid
+and has not been revoked at the moment of verification. This security objective addresses
+the threat of credential loss and holder misconduct.
+
+4.4.3
+
+Operational Objectives
+
+OO-1: Interface Simplicity
+The prototype system should expose a simple and intuitive user interface to holders. Holders
+should be clearly informed about the identity attributes they are about to disclose before
+generating and providing a verifiable presentation. Additionally, holders should always
+have an option to decline the disclosure of some specific attributes. This design objective
+addresses Section 4.2.2 Scenario 2, and represents one of the key value propositions of SSI
+systems as shown in Table 4.1.
+
+OO-2: Interoperability (Credential Format)
+The prototype should aim to follow Verifiable Credentials Data Model v2.0 (W3C Verifiable
+Credentials Working Group, 2025) with the intent to achieve interoperability with other
+Verifiable Credentials systems.
+
+35
+
+OO-3: Performance
+The prototype system should allow for timely proof generation on the holder’s side, and
+verification on the verifier’s side. Realistically, the holders are likely to be using mobile
+devices for storing credentials and generating verifiable presentations, so the system should
+provide practical proof generation times for mobile devices. This operational objective
+is critical to make the prototype system feasible for practical usage. For example, some
+students might not want to use a system that takes more than 20 seconds to generate
+a verifiable presentation despite perceivable privacy benefits. Babel and Sedlmeir (2023)
+consider proof generation time of less than 10 seconds on mobile phones to be practical.
+
+OO-4: Proof Size Minimisation
+The prototype system should aim to minimise the size of verifiable presentations. The large
+size of VPs increases transmission overhead and directly impacts the diversity of transmission
+methods available to holders. Ideally, the preferable method of VP transmission is via QR
+codes, which are limited in the amount of data they can hold up to 2.9KB (International
+Organization for Standardization, 2024).
+
+OO-5: Offline Proof Generation
+Holders should be able to generate verifiable presentations without Internet connectivity.
+This operational constraint is essential to ensure practical usability of the system. For
+example, if the system is used to provide physical access to university classrooms, it would
+pose a significant usability issues if were unable to enter the room due to lack of Internet
+connectivity.
+
+OO-6: Interoperability (Selective Disclosure Mechanism)
+The prototype system should rely on a selective disclosure mechanism that is standardised
+and widely adopted. This operational objective is essential to ensure interoperability with
+other Verifiable Credentials systems.
+
+4.5
+
+System Architecture
+
+4.5.1
+
+Architectural Layers
+
+The prototype’s architecture is divided into three logical layers: Infrastructure Layer, Protocol Layer, Cryptographic Primitives Layer.
+
+36
+
+Cryptographic Primitives Layer
+Cryptographic Primitives Layer is the lowest layer of architecture that encompasses the
+cryptographic mechanisms that are used within the system. It encompasses underlying
+selective disclosure mechanisms, their efficiency, privacy and security properties.
+
+Protocol Layer
+Protocol Layer is concerned with how entities interact with those primitives. It encompasses credential formats, issuance, presentation and verification flows, as well as revocation
+mechanisms.
+
+Infrastructure Layer
+Infrastructure is the highest layer of architecture that encompasses system deployment and
+operational environment. It includes mock-ups of digital wallet application, issuer and
+verifier infrastructure, and public registries.
+
+4.5.2
+
+Mapping Design Objectives to Architectural Layers
+
+In Section 4.4 design objectives were categorised into privacy, security and operational objectives based on their nature. In contrast, Table 4.2 illustrates how the design objectives
+are mapped to different layers of the system architecture, depending on the layer at which
+each objective can be achieved.
+
+37
+
+Table 4.2: Mapping of Design Objectives Architectural Layers
+Architectural Layer
+
+Relevant Design Objectives
+
+Infrastructure Layer
+
+PO-6: Privacy in Public Registries
+OO-1: Interface Simplicity
+
+Protocol Layer
+
+PO-2: Unlinkability of Presentations
+PO-4: Issuer Unobservability
+PO-5: Predicate Disclosure
+SO-3: Replay Resistance
+SO-4: Revocation Mechanism
+OO-2: Interoperability (Credential Format)
+OO-5: Offline Proof Generation
+
+Cryptographic Primitives Layer
+
+PO-1: Selective Disclosure
+PO-2: Unlinkability of Presentations
+PO-3: Blind Issuance
+PO-5: Predicate Disclosure
+SO-1: Integrity and Authenticity
+SO-2: Holder Binding
+OO-3: Performance
+OO-4: Proof Size Minimisation
+OO-6: Interoperability (Selective Disclosure Mechanism)
+
+PO-6 and OO-1 are achieved at infrastructure layer, as their nature is dependent on the way
+system is deployed and operated. Although objectives PO-2 and PO-5 can be viewed as
+inherent to the cryptographic primitives, they are in fact cross-layer, since their achievement can be compromised or facilitated on a protocol level. For example, unlinkability was
+compromised on a protocol level in Hoang et al. (2024) due to inclusion of persistent DIDs in
+VP header. Additionally, achieving predicate disclosure for BBS+ signatures on a protocol
+level with inclusion of additional proofs was discussed in Flamini et al. (2024).
+
+4.5.3
+
+BBS+ as a Core Selective-Disclosure Mechanism
+
+Based on the design objectives on a Cryptographic Primitives Layer identified in Table 4.2,
+BBS+ selective disclosure signatures are chosen to be a core mechanism for the prototype. BBS+ selective-disclosure signatures with specific-purpose ZKPs were preferred for
+the specific requirements of the system over general ZKPs systems, such as ones based on
+ZK-SNARKs, and hash-based approaches like SD-JWT. A comparative analysis of these
+38
+
+technologies against design objectives is presented in Table 4.3.
+Table 4.3: Comparison of VC Technologies against Design Objectives
+Hash-Based
+(SD-JWT)
+
+Signature-Based
+(BBS+)
+
+General-purpose
+ZKPs (SNARKs)
+
+PO-1: Selective Disclosure
+PO-2: Unlinkability of Presentations
+PO-3: Blind Issuance
+PO-5: Predicate Disclosure
+
++
+−
+−
+−
+
++
++
++
+±b
+
+±a
++
+±
++
+
+SO-1: Integrity and Authenticity
+SO-2: Holder Binding
+
++
+±
+
++
++
+
++
+±
+
+OO-3: Performance
+OO-4: Proof Size Minimisation
+OO-6: Interoperability (Selective Disclosure
+Mechanism)
+
++
+±c
++
+
+±
+±
+±d
+
+−
++
+−
+
+Objective
+
++ Natively supported. − Not supported or fundamentally incompatible. ± Achievable with additional mechanisms or significant trade-offs.
+a Selective disclosure achievable within ZKP circuits but requires explicit circuit design.
+b Achievable at protocol level with additional specific-purpose proofs.
+c SD-JWT is a cmtList based approach within Flamini et al. (2024) classification. CmtList proofs
+are small, but grow linearly with each additional attribute.
+d BBS+ is an IRTF draft (Looker et al., 2026) as opposed to SD-JWT which is an RFC standard
+(Fett, Yasuda, and Campbell, 2025). However, BBS+ is on clear track for standardisation, and
+included into W3C Data Model 2.0 specification (W3C Verifiable Credentials Working Group, 2025).
+Therefore, it can be considered as partially meeting OO-6: Interoperability (Selective Disclosure
+Mechanism).
+
+While systems based on zk-SNARKs are capable of achieving PO-1: Selective Disclosure,
+PO-3: Blind Issuance, and SO-2: Holder Binding (Ramić et al., 2024), BBS+ does not
+require computation of circuits and provides this functionality natively on the algebraic
+level (Flamini et al., 2024) and does not require additional protocol interactions to achieve
+blind issuance of link secrets.
+In terms of security, SD-JWT depends on the security properties of hash functions described
+in Section 3.2.2, and digital signatures described in Section 3.2.3. BBS+ is secure under
+q-strong Diffie-Hellman assumption (Tessaro and Zhu, 2023), and there exists multiple provably secure zk-SNARKs implementations, e.g. PLONK is secure in Algebraic Group Model
+(Gabizon, Williamson, and Ciobotaru, 2019)
+ZK-SNARKs systems have the smallest succinct proofs, but lack in terms of performance
+and being featured in official standards, unlike SD-JWT and BBS+ as was discussed in Section 2.3. A distinct advantage of general-purpose ZKP systems is native support for proving
+complex predicates. However, as shown in Table 4.3, BBS+ selective-disclosure signatures
+better align with the objectives of the project, hence they were chosen to be the main cryptographic primitive. The absence of native support for proving complex predicates will be
+attempted to be mitigated on a protocol level with attachment of additional proofs to the
+39
+
+Verifiable Presentation. Additionally, BBS+ signatures have an open-source implementation with a Python wrapper, which is a significant advantage for the implementation of the
+prototype (Mattrglobal/Bbs-Signatures 2026).
+
+4.5.4
+
+Credential Format
+
+W3C Data Model
+As declared in objective OO-2: Interoperability (Credential Format), the prototype systems
+aims to be interoperable with other Verifiable Credentials systems, hence attempting to align
+conceptually with W3C Verifiable Credentials Data Model 2.0 (W3C Verifiable Credentials
+Working Group, 2025). However, due to the complexity of the full data integrity processing
+pipeline, the prototype can have some components simplified, i.e. JSON-LD canonicalisation. The implementation prioritises demonstrating underlying cryptographic mechanisms
+over full compliance with data model. If the component or mechanism is simplified, it will
+be clearly documented in Chapter 5 - Prototype Development.
+
+Attributes Within the Credential
+In order to facilitate use-case scenarios outlined in Section 4.2.2, Table 4.4 shows the attribute fields considered to be included in the credential.
+
+40
+
+Table 4.4: Attributes included in the Graduation Credential
+Attribute Name
+
+Description / Rationale
+
+Name
+
+Basic field for selective-disclosure.
+
+Last Name
+
+Basic field for selective-disclosure.
+
+Date of Birth
+
+The value will be stored as a ”days since epoch” with the
+intent to demonstrate range proofs.
+
+Student ID
+
+The value will almost always be hidden, and only revealed
+where strong identification is required. For example, during
+exams.
+
+Name of Qualification
+
+Specifies the degree or award title (e.g., Bachelor of Science).
+Relevant for ABAC.
+
+Field of Study
+
+Defines the name of the subject the student is studying.
+Relevant for ABAC.
+
+Language of Instruction
+
+Relevant for international recognition and enrollment in programs with specific language requirements.
+
+Mode
+
+Full-time / Part-time. Relevant for proving eligibility for
+student discounts.
+
+Link Secret
+
+Cryptographic commitment used to bind the credential to
+the holder’s wallet while maintaining privacy and unlinkability. This value is known only to the holder.
+
+Enrollment Status
+
+Current / Alumni. Relevant for proving eligibility for student discounts.
+
+Valid Until
+
+Specifies expiration date of the credential.
+
+Revocation Materiala
+
+A W3C Bitstring index, or a value included in a cryptographic accumulator.
+
+a Revocation mechanisms are discussed in Section 4.5.5.
+
+Numeric value for Date of Birth should facilitate demonstration of proving predicates aligning with Scenario 4. Fields Name of Qualification, Field of Study, Language of Instruction,
+Mode, and Enrollment Status are relevant for Attribute-Based Access Control aligning with
+Scenario 3.
+
+4.5.5
+
+Considering Revocation
+
+Privacy-preserving revocation is one of the significant challenges in SSI (Satybaldy, Ferdous,
+and Nowostawski, 2024). One of the simplest approaches for implementing revocation is
+W3C Bitstrings (W3C Verifiable Credentials Working Group, 2026). However, this approach
+introduces a static identifier and hence compromises PO-2: Unlinkability of Presentations
+41
+
+and PO-6: Privacy in Public Registries. W3C acknowledge this in the Bitstring Status List
+specification, suggesting that the pointer to the status list should not be disclosed most of the
+time, and only disclosed in cases where strong revocation checking is required. However, this
+introduces a security risk under the threat model specified in Section 4.3, since the holder
+is assumed to be an active adversary who can attempt to present invalidated credentials.
+A more privacy-preserving approach for revocation is to use cryptographic accumulators
+(Lee, Shin, and Choi, 2026). However, this approach requires adding additional fields to
+the BBS+ based Verifiable Credential, and providing an additional Proof of Knowledge
+creating an overhead on the protocol layer. Additionally, cryptographic accumulators for the
+revocation of BBS+ signatures are complex to implement, and their integration to the system
+will need to be on both cryptographic primitives and protocol layers. While protocol layer
+integration is a subject to design logic, cryptographic primitives layer integration is affected
+by the degree of programming flexibility provided by the specific BBS+ implementation in
+use. For example, the Mattrglobal/Bbs-Signatures (2026) library does not expose interfaces
+for integration of cryptographic accumulators, and would require modifications to the library
+to support revocation, which might be an obstacle for implementing the prototype within
+the project’s timeframe. This is the reason why use-case Scenario 5 was made optional.
+An additional approach for revocation is using what is known as short-lived credentials.
+This revocation approach takes advantage of setting a short validity period, e.g. 1-2 days,
+as an attribute within credential. Upon reaching the validity cut-off date, the holder needs
+to re-request a new credential from the issuer. If the holder is no longer eligible, the issuer
+will simply deny the request. Such approach achieves PO-6: Privacy in Public Registries,
+and PO-2: Unlinkability of Presentations if all credentials issued by the issuer have the
+same cut-off periods, further called epochs. However, this mechanism creates a significant
+overhead on the issuer, as they will need to issue new credentials to all holders, and only
+partially addresses SO-4: Revocation Mechanism since the issuer is unable to revoke the
+credential immediately.
+Due to the reasons outlined above, the prototype implements revocation as a combination of
+W3C Bitstrings and short-lived credentials approach. The credentials will be issued with a
+relatively short validity period, e.g. for a duration of a 7 week academic block (De Montfort
+University, 2026), and contain a Bitstring index disclosed in cases when revocation check
+is of utmost importance. The verifier will be able to require the holder to disclose the
+Bitstring index in order to accept the credential, and the holder can always refuse to do
+so. However, this creates an oversharing privacy concern which was described in the work
+of Álvarez, Hölzmer, and Sedlmeir (2026). Further privacy evaluation will be provided in
+Chapter 6. Since the hybrid approach still does not solve the problem of privacy-preserving
+revocation completely, an attempt will be made to implement cryptographic accumulators
+as an optional extension to the prototype.
+The trade-off between privacy, simplicity and performance outlined above corresponds to
+the RQ3 research question, and is explored further in Chapter 5 and Chapter 6.
+
+42
+
+4.5.6
+
+Considering Predicate-Disclosure
+
+Although, BBS+ does not provide native support for proving predicates on hidden attributes, it can be achieved on a protocol level by introducing additional steps in the protocol (Flamini et al., 2024). Generally, in order to prove a predicate alongside BBS+ verifiable
+presentation, a holder needs to include an additional proof (or subproof) of knowledge inside the original Signature Proof of Knowledge of BBS+. A high-level view on the target
+predicate verification flow with BBS based credentials is presented in Figure 4.5.
+An open source library Docknetwork/Crypto (2026) provides a BBS+ signature implementation with a composite proof system which allows to prove predicates, i.e. range proofs, over
+hidden attributes within BBS+ verifiable presentations. However, an important consideration and a limitation for proving predicates in BBS+ verifiable presentations is the absence
+of formal predicates framework, which would provide a unified architecture reference for
+how such predicates should be formed, incorporated within the credential and processed by
+verifiers. This limitation creates an obstacle for interoperability between verifiers who might
+be using different BBS+ implementations with different predicate logic.
+
+4.5.7
+
+System Context Diagram
+
+Figure 4.1 illustrates a high-level overview of the entities within the proposed system architecture and their relationships. The diagram in Figure 4.1 aligns with the SSI Trust Triangle
+which was introduced in Figure 2.1. Issuer represents the main trust anchor of the system
+responsible for issuing verifiable credentials, publishing and managing information necessary
+for verification, e.g. public keys, and revocation information, such as W3C Bitlists. Holder
+is an entity that receives verifiable credentials, stores them in the wallet, and generates
+verifiable presentations that are forwarded to verifiers. Verifiers are entities that parse revocation and verification information from the public registry, and verify credentials presented
+by holders.
+
+Figure 4.1: System context diagram (Extended Trust Triangle)
+43
+
+Both holder and verifier access public registry to obtain revocation and verification information. However, they have different purposes. Holder obtains revocation information only
+occasionally, specifically when they want to confirm that their credential has not been revoked. Some verifiers will never require obtaining revocation information as for the most
+use-cases verifiers will rely solely on the validity period of the credential as a revocation
+check as was described in Section 4.5.5.
+Obtaining verification information includes resolving the issuer’s public key. The threat
+model defined in Section 4.3 assumes that the public registry is tamper-proof, and trusted,
+hence holders and verifiers within the prototype system are not required to verify the legitimacy of the issuer’s information stored on the registry. In a production-ready system, the
+public registry would be replaced with a verifiable data registry, and an additional mechanism will be required to verify issuer’s information. For example, W3C VC Data Model 2.0
+uses verifiable DID documents to anchor issuer’s public key and other relevant information
+(W3C Verifiable Credentials Working Group, 2025).
+
+4.5.8
+
+Interaction Flows
+
+The prototype system should facilitate following interaction flows:
+
+Flow 1: Blind Verifiable Credential Issuance with Link Secret
+Since the main mechanism of achieving privacy-preserving holder binding in the prototype
+system is link secrets, the interaction flow for VC issuance should explicitly consider the
+process of creating link secrets and blind signatures.
+Figure 4.2 illustrates the interaction flow between holder and verifier for VC issuance with
+the link secret which was blindly signed by the issuer. The issuer in this interaction does not
+learn the value of the link secret. Although under the threat model defined in Section 4.3
+the issuer is honest and would not attempt to forge valid verifiable presentations on behalf
+of the holder, not knowing the link secret would prevent the issuer from producing any valid
+presentations on behalf of the holder.
+
+44
+
+VERIFIER
+
+HOLDER
+
+ISSUER
+
+1. VC issuance request
+2. Freshness value
+
+3. Create blinding
+commitment to
+link secret,
+and PoK
+4. Blind sign request
+(attributes, commitment, PoK)
+
+5. Verify PoK
+
+6. Create VC
+with blind
+signature
+7. VC with blind signature
+
+8. Unblind
+signature
+
+9. Verify
+VC
+
+Figure 4.2: Blind VC issuance interaction flow
+
+Figure 4.2 explicitly includes the step of unblinding the signature, which is performed by the
+holder after receiving the signed credential from the issuer. Although Section 3.1.6 identifies
+BBS blinding methods that omit a separate unblinding phase, the workflow in Figure 4.2
+explicitly includes it to accurately represent the general blind signature workflow.
+
+45
+
+Flow 2: Verifiable Credential Re-issuance
+Hybrid revocation mechanism described in Section 4.5.5 requires holders to request the
+issuer to re-issue credentials that reached their validity period. Figure 4.3 illustrates the
+interaction flow between the holder and the issuer for VC re-issuance after the holder sends
+a re-issuance request over the secure channel.
+
+46
+
+VERIFIER
+
+HOLDER
+
+ISSUER
+
+1. VC re-issuance request
+2. Freshness value
+3. Create VP
+with all
+disclosed
+except link
+secret
+4. Create new
+blinding
+commitment
+to link secret,
+and PoK
+5. VP, commitment, PoK
+
+6. Verify VP
+7. Verify PoK
+8. Check expiration
+of validity
+9. Update
+validity
+10. Create VC
+with blind
+signature
+11. VC with blind signature
+
+12. Unblind
+Signature
+13. Verify VC
+
+Figure 4.3: VC re-issuance interaction flow
+
+47
+
+Flow 3: Presenting Verifiable Presentation
+Figure 4.4 illustrates the interaction flow in which the holder provides a verifiable presentation with selective-disclosure of attributes to the verifier. Step 5 ”Verify VP” includes
+assessment of revocation status. For regular low-to-medium risk use-cases, the verifier will
+assume the revocation status of the credential based on its expiration date, as described in
+Section 4.5.5. In high-risk use-cases in which determination of revocation status is of utmost
+importance, the verifier will include a requirement to disclose a Bitstring index in the proof
+request, obtain the current status of the Bitstring from the public registry, and compare the
+Bitstring value in the VP against it.
+The critical thing demonstrated in Figure 4.4 is that the issuer is not involved in the interaction at all, and hence remains unaware of the fact that the holder uses the credential.
+This workflow supports achieving PO-4: Issuer Unobservability design objective.
+
+VERIFIER
+
+HOLDER
+
+ISSUER
+
+1. Proof request + freshness value
+
+2. Choose disclosed
+messages
+3. Create VP
+4. VP
+
+5. Verify VP
+6. Verification successful
+
+Figure 4.4: Verifiable Presentation interaction flow
+
+Flow 4: Presenting Verifiable Presentation with Predicates
+As was described in Section 4.5.6, in order to prove a predicate alongside BBS+ verifiable
+presentation, a holder needs to include a sub-proof of knowledge alongside the original
+BBS+ signature proof of knowledge. Figure 4.5 builds upon Figure 4.4 and illustrates the
+VP presentation flow with inclusion of additional predicates.
+48
+
+VERIFIER
+
+HOLDER
+
+ISSUER
+
+1. Proof request + freshness value
+
+2. Choose disclosed
+messages
+3. Compute a
+sub-proof
+4. Create VP with
+sub-proof
+5. VP with sub-proof
+
+6. Verify VP
+7. Verify
+sub-proof
+8. Verification successful
+
+Figure 4.5: Verifiable Presentation with Predicate interaction flow
+
+49
+
+Chapter 5
+Prototype Development
+
+50
+
+Chapter 6
+Evaluation
+
+51
+
+References
+Alown, M., M. S. Kiraz, and M. A. Bingol (2025). “Enhancing Democratic Processes: A
+Survey of DRE, Internet, and Blockchain in Electronic Voting Systems”. In: IEEE Access
+13, pp. 20512–20545. url: https : / / ieeexplore . ieee . org / document / 10844285/
+(Accessed: 19 Mar. 2026).
+Álvarez, I. A., P. Hölzmer, and J. Sedlmeir (2026). “Privacy Evaluation of the European
+Digital Identity Wallet’s Architecture and Reference Framework”. In: Computers & Security 160, p. 104707. url: https : / / linkinghub . elsevier . com / retrieve / pii /
+S0167404825003967 (Accessed: 5 Feb. 2026).
+Babel, M. and J. Sedlmeir (2023). Bringing Data Minimization to Digital Wallets at Scale
+with General-Purpose Zero-Knowledge Proofs. arXiv: 2301 . 00823 [cs]. url: http :
+//arxiv.org/abs/2301.00823 (Accessed: 6 Feb. 2026). Pre-published.
+Babel, M., L. Willburger, J. Lautenschlager, F. Völter, T. Guggenberger, M.-F. Körner, J.
+Sedlmeir, J. Strüker, and N. Urbach (2025). “Self-Sovereign Identity and Digital Wallets”.
+In: Electronic Markets 35.1, p. 28. url: https : / / link . springer . com / 10 . 1007 /
+s12525-025-00772-0 (Accessed: 11 Feb. 2026).
+Boneh, D. and V. Shoup (2023). “A Graduate Course in Applied Cryptography”. In: url:
+https://toc.cryptobook.us/ (Accessed: 8 Feb. 2026).
+Buldini, A., C. Mazzocca, R. Montanari, and S. Uluagac (2025). “Benchmarking Selective
+Disclosure Mechanisms for Verifiable Credentials: A Systematic Comparison for Security and Privacy”. In: IEEE Transactions on Information Forensics and Security 20,
+pp. 13205–13220. url: https : / / ieeexplore . ieee . org / document / 11271261/ (Accessed: 5 Feb. 2026).
+De Montfort University (2026). Block Teaching. De Montfort University Leicester. url:
+https://www.dmu.ac.uk/empowering- university/block- teaching/index.aspx
+(Accessed: 16 Mar. 2026).
+Docknetwork/Crypto (2026). Dock Labs. url: https://github.com/docknetwork/crypto
+(Accessed: 16 Mar. 2026).
+Dodis, Y., A. Jain, H. Lin, J. Luo, and D. Wichs (2024). “How to Simulate Random Oracles with Auxiliary Input”. In: 2024 IEEE 65th Annual Symposium on Foundations
+of Computer Science (FOCS). 2024 IEEE 65th Annual Symposium on Foundations of
+Computer Science (FOCS), pp. 1207–1230. url: https : / / ieeexplore . ieee . org /
+document/10756037/ (Accessed: 9 Feb. 2026).
+European Digital Identity Wallet - European Digital Identity (2026). url: https://eudigital- identity- wallet.github.io/eudi- doc- architecture- and- referenceframework/2.4.0/architecture- and- reference- framework- main/ (Accessed: 26
+Feb. 2026).
+European Parliament (2024). Regulation (EU) 2024/1183 of the European Parliament and
+of the Council of 11 April 2024 Amending Regulation (EU) No 910/2014 as Regards
+52
+
+Establishing the European Digital Identity Framework. url: http://data.europa.eu/
+eli/reg/2024/1183/oj (Accessed: 26 Feb. 2026).
+Fett, D., K. Yasuda, and B. Campbell (2025). Selective Disclosure for JSON Web Tokens.
+Request for Comments RFC 9901. Internet Engineering Task Force. 88 pp. url: https:
+/ / datatracker . ietf . org / doc / draft - ietf - oauth - selective - disclosure - jwt
+(Accessed: 2 Mar. 2026).
+Flamini, A., G. Sciarretta, M. Scuro, A. Sharif, A. Tomasi, and S. Ranise (2024). “On Cryptographic Mechanisms for the Selective Disclosure of Verifiable Credentials”. In: Journal
+of Information Security and Applications 83, p. 103789. url: https://linkinghub.
+elsevier.com/retrieve/pii/S2214212624000929 (Accessed: 3 Feb. 2026).
+Gabizon, A., Z. J. Williamson, and O. Ciobotaru (2019). “PlonK: Permutations over Lagrangebases for Oecumenical Noninteractive Arguments of Knowledge”. In.
+General Data Protection Regulation (2016). url: https://gdpr- info.eu/ (Accessed: 6
+Feb. 2026).
+He, J., X. Ma, D. Zhang, and F. Peng (2024). “Supervised and Revocable Decentralized
+Identity Privacy Protection Scheme”. In: Security and Safety 3, p. 2024013. url: https:
+//sands.edpsciences.org/10.1051/sands/2024013 (Accessed: 11 Feb. 2026).
+Hoang, A.-T., C. U. Ileri, W. Sanders, and S. Schulte (2024). “zkSSI: A Zero-KnowledgeBased Self-Sovereign Identity Framework”. In: 2024 IEEE International Conference on
+Blockchain (Blockchain). 2024 IEEE International Conference on Blockchain (Blockchain),
+pp. 276–285. url: https://ieeexplore.ieee.org/document/10664246/ (Accessed:
+11 Feb. 2026).
+International Organization for Standardization (2024). Information Technology — Automatic Identification and Data Capture Techniques — QR Code Bar Code Symbology
+Specification.
+Kalos, V. and G. M. Bernstein (2025). Blind BBS Signatures. Internet Draft draft-irtfcfrg-bbs-blind-signatures-02. Internet Engineering Task Force. 77 pp. url: https : / /
+datatracker.ietf.org/doc/draft- irtf- cfrg- bbs- blind- signatures- 02 (Accessed: 18 Mar. 2026).
+Katz, J. and Y. Lindell (2020). Introduction to Modern Cryptography. 3rd ed. Chapman and
+Hall/CRC. url: https://www.taylorfrancis.com/books/9781351133029 (Accessed:
+21 Jan. 2026).
+Lee, Y., H. Shin, and D. Choi (2026). “A Survey on Credential Revocation and DID Deactivation in Self-Sovereign Identity Systems”. In: IEEE Access 14, pp. 16089–16115. url:
+https://ieeexplore.ieee.org/document/11320238/ (Accessed: 13 Feb. 2026).
+Looker, T., V. Kalos, A. Whitehead, and M. Lodder (2026). The BBS Signature Scheme.
+Internet Draft draft-irtf-cfrg-bbs-signatures-10. Internet Engineering Task Force. 120 pp.
+url: https : / / datatracker . ietf . org / doc / draft - irtf - cfrg - bbs - signatures
+(Accessed: 2 Mar. 2026).
+M. Lodder, T. Looker, and A. Whitehead (2026). Blind Signatures Extension of the BBS Signature Scheme. Decentralised Identity Foundation. url: https://identity.foundation/
+bbs-signature/draft-blind-bbs-signatures.html (Accessed: 18 Mar. 2026).
+Mattrglobal/Bbs-Signatures (2026). MATTR. url: https://github.com/mattrglobal/
+bbs-signatures (Accessed: 16 Mar. 2026).
+Menezes, A., P. C. Van Oorschot, and S. A. Vanstone (1997). Handbook of Applied Cryptography. CRC Press Series on Discrete Mathematics and Its Applications. Boca Raton:
+CRC Press.
+
+53
+
+Moriyama, K. and A. Otsuka (2025). “Sybil-Resistant Self-Sovereign Identity Utilizing Attested Execution Secure Processors and Zero-Knowledge Membership Proofs”. In: IEEE
+Access 13, pp. 17919–17944. url: https://ieeexplore.ieee.org/document/10852291/
+(Accessed: 11 Feb. 2026).
+Patil, C., S. Jain, R. A. Khare, and S. Lahire (2024). “Age Verification Using Zero-knowledge
+Proof”. In: 2024 IEEE International Conference on Blockchain and Distributed Systems
+Security (ICBDS). 2024 IEEE International Conference on Blockchain and Distributed
+Systems Security (ICBDS), pp. 1–9. url: https://ieeexplore.ieee.org/document/
+10837396/ (Accessed: 11 Feb. 2026).
+Ramić, Š. B., E. Cogo, I. Prazina, E. Cogo, M. Turkanović, R. T. Mulahasanović, and
+S. Mrdović (2024). “Selective Disclosure in Digital Credentials: A Review”. In: ICT
+Express 10.4, pp. 916–934. url: https://linkinghub.elsevier.com/retrieve/pii/
+S2405959524000614 (Accessed: 11 Feb. 2026).
+Roberts, E. (2025). Global Legislation and Policy Changes Keeping Children Safe Online.
+NWG Network. url: https://nwgnetwork.org/global-legislation-and-policychanges-keeping-children-safe-online/ (Accessed: 6 Feb. 2026).
+Rometsch, L., P.-F. Lehwalder, A.-T. Hoang, D. Kaaser, and S. Schulte (2025). “UPPR:
+Universal Privacy-Preserving Revocation”. In: 2025 IEEE International Conference on
+Blockchain (Blockchain). 2025 IEEE International Conference on Blockchain (Blockchain),
+pp. 161–170. url: https://ieeexplore.ieee.org/document/11264637/ (Accessed:
+11 Feb. 2026).
+Salve, A. D., A. Lisi, M. Cascino, P. Mori, and L. Ricci (2026). “Selective Disclosure Approaches in Self-Sovereign Identity: An Experimental Comparison”. In: IEEE Access 14,
+pp. 1152–1181. url: https://ieeexplore.ieee.org/document/11316648/ (Accessed:
+4 Feb. 2026).
+Satybaldy, A., M. S. Ferdous, and M. Nowostawski (2024). “A Taxonomy of Challenges for
+Self-Sovereign Identity Systems”. In: IEEE Access 12, pp. 16151–16177. url: https:
+//ieeexplore.ieee.org/document/10413448/ (Accessed: 13 Feb. 2026).
+Schoenmakers, B. (2025). “Lecture Notes Cryptographic Protocols”. In.
+Siddiqui, H., M. Idrees, I. Gudymenko, D. L. Quoc, and C. Fetzer (2021). “Credentials as
+a Service Providing Self Sovereign Identity as a Cloud Service Using Trusted Execution
+Environments”. In: 2021 IEEE International Conference on Cloud Engineering (IC2E).
+2021 IEEE International Conference on Cloud Engineering (IC2E), pp. 210–216. url:
+https://ieeexplore.ieee.org/document/9610297/ (Accessed: 11 Feb. 2026).
+Tessaro, S. and C. Zhu (2023). Revisiting BBS Signatures. url: https://eprint.iacr.
+org/2023/275 (Accessed: 2 Mar. 2026). Pre-published.
+W3C Verifiable Credentials Working Group (2025). Verifiable Credentials Data Model v2.0.
+url: https://www.w3.org/TR/vc-data-model-2.0/ (Accessed: 17 Feb. 2026).
+— (2026). Bitstring Status List v1.0. W3C Recommendations. url: https://www.w3.org/
+TR/vc-bitstring-status-list/#abstract (Accessed: 19 Feb. 2026).
+Wang, F., S. Yang, M. Zhang, Y. Liu, Q. Zhang, and F. Tian (2025a). “DAVC: A Verifiable Credentials Model for Dynamic Attribute Management”. In: 2025 IEEE International Symposium on Parallel and Distributed Processing with Applications (ISPA). 2025
+IEEE International Symposium on Parallel and Distributed Processing with Applications
+(ISPA), pp. 1431–1438. url: https://ieeexplore.ieee.org/document/11245298/
+(Accessed: 11 Feb. 2026).
+Wang, Y., L. Chen, L. Meng, and C. J. Newton (2024). “VCaDID: Verifiable Credentials
+with Anonymous Decentralized Identities”. In: 2024 IEEE 23rd International Conference
+54
+
+on Trust, Security and Privacy in Computing and Communications (TrustCom). 2024
+IEEE 23rd International Conference on Trust, Security and Privacy in Computing and
+Communications (TrustCom), pp. 508–515. url: https : / / ieeexplore . ieee . org /
+document/10945125/ (Accessed: 11 Feb. 2026).
+Wang, Y., L. Chen, Y. Tian, L. Meng, and C. J. P. Newton (2025b). “AVPEU: Anonymous
+Verifiable Presentations with Extended Usability”. In: The Computer Journal 68.11,
+pp. 1755–1771. url: https : / / academic . oup . com / comjnl / article / 68 / 11 / 1755 /
+8171922 (Accessed: 11 Feb. 2026).
+Watanabe, R., W. Chongchitmate, and N. Cooharojananone (2025). “Privacy-Preserving
+Academic Transcript Verification Using Zero-Knowledge Proof”. In: 2025 9th International Conference on Information Technology (InCIT). 2025 9th International Conference on Information Technology (InCIT), pp. 558–564. url: https : / / ieeexplore .
+ieee.org/document/11276100/ (Accessed: 11 Feb. 2026).
+Xinglin, S. and S. Fei (2024). “A Two-Party Collaborative Blind Signature Scheme Based
+on SM9”. In: 2024 7th International Conference on Artificial Intelligence and Big Data
+(ICAIBD). 2024 7th International Conference on Artificial Intelligence and Big Data
+(ICAIBD), pp. 288–295. url: https://ieeexplore.ieee.org/document/10604619/
+(Accessed: 19 Mar. 2026).
+Zhang, T., Y. Wang, B. Gong, J. Xu, J. Wu, and C. Wan (2025). “Privacy Protection During
+the Issuance and Revocation of Verifiable Credentials in Self-Sovereign Identity”. In:
+Concurrency and Computation: Practice and Experience 37.9–11, e70084. url: https:
+//onlinelibrary.wiley.com/doi/10.1002/cpe.70084 (Accessed: 11 Feb. 2026).
+
+55
+
+

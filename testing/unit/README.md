@@ -45,6 +45,12 @@ Tests focused on the internal state machines and behavioral guardrails of the pr
 ### `test_issuer.py` — Issuer Availability & Proof Validation
 *   **`test_issuer_rejects_overlapping_sessions`**: Confirms that the Issuer raises `IssuerNotAvailable` if a new session starts while another is active.
 *   **`test_issuer_rejects_replayed_proof`**: Verifies that a valid commitment proof from one session is rejected if replayed in another session (nonce binding).
+*   **Epoch Boundary Logic**:
+    *   `test_epoch_boundary_initial_issuance_outside_window`: Initial issuance correctly snaps to the next calculated epoch boundary.
+    *   `test_epoch_boundary_initial_issuance_inside_window`: Bumps to the next boundary if issuance occurs inside the re-issuance window.
+    *   `test_epoch_boundary_before_baseline`: Ensures logic functions correctly for dates prior to the configured baseline.
+    *   `test_epoch_boundary_late_issuance`: Confirms that outdated credentials re-sync to the currently active epoch.
+    *   `test_epoch_boundary_late_issuance_inside_window`: Proves that re-issuing an outdated credential near an epoch boundary bumps to the *next* epoch, preventing immediate expiration.
 
 ### `test_verifier.py` — Verifier Session Management
 *   **`test_process_request_without_challenge_raises`**: Rejects incoming VPs if no challenge nonce was issued.
@@ -73,5 +79,5 @@ End-to-end integration tests that exercise the multi-step protocol sequences and
 *   **`test_stress_reissuance`**: Runs 100 sequential reissuance rounds on a single credential.
 *   **`test_replay_different_commitment`**: **Critical Security Test.** Prevents an attacker from substituting a new commitment into a captured VP (Substitution Attack protection).
 *   **`test_attribute_modification`**: Ensures the Issuer verifies that the re-issued attributes match the original ones revealed in the VP.
-*   **`test_reissuance_window_boundary`**: Validates the `validUntil` expiration logic and the re-issuance window enforcement.
-*   **`test_reissued_credential_integrity`**: Confirms that the new credential has a refreshed expiry while maintaining the same `metaHash` for long-term attribute binding.
+*   **`test_reissuance_window_boundary`**: Validates the `validUntil` expiration logic and the re-issuance window enforcement using negative offset mocking.
+*   **`test_reissued_credential_integrity`**: Confirms that instantaneous re-issuance maintains the exact same epoch boundary and `metaHash`.

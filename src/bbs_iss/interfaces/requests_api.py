@@ -2,6 +2,7 @@ from __future__ import annotations
 import ursa_bbs_signatures as bbs
 from enum import Enum
 from typing import TYPE_CHECKING
+from dataclasses import dataclass
 from bbs_iss.exceptions.exceptions import AttributesNotCommitted, NoBlindedAttributes, NoRevealedAttributes
 from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresentation
 
@@ -20,6 +21,14 @@ class SigningPublicKey:
         _key_pair = bbs.BlsKeyPair(public_key=public_key.key)
         signing_public_key = _key_pair.get_bbs_key(total_messages)
         return SigningPublicKey(signing_public_key)
+
+
+@dataclass
+class IssuerPublicData:
+    public_key: PublicKeyBLS
+    revocation_bitstring: str
+    valid_until_weeks: int
+    validity_window_days: int
 
 
 class AttributeType(Enum):
@@ -118,6 +127,10 @@ class RequestType(Enum):
     VRF_ACKNOWLEDGE = 9
     ERROR = 10
     FORWARD_VP_AND_CMT = 11
+    REGISTER_ISSUER_DETAILS = 12
+    UPDATE_ISSUER_DETAILS = 13
+    GET_ISSUER_DETAILS = 14
+    ISSUER_DETAILS_RESPONSE = 15
 
 
 class Request:
@@ -171,4 +184,27 @@ class ForwardVpAndCmtRequest(Request):
         self.revealed_attributes = attributes.get_revealed_attributes()
         self.messages_with_blinded_indices = attributes.get_messages_with_blinded_indices()
         self.total_messages = attributes.size
+
+
+class RegisterIssuerDetailsRequest(Request):
+    def __init__(self, issuer_name: str, issuer_data: IssuerPublicData):
+        super().__init__(RequestType.REGISTER_ISSUER_DETAILS)
+        self.issuer_name = issuer_name
+        self.issuer_data = issuer_data
+
+class UpdateIssuerDetailsRequest(Request):
+    def __init__(self, issuer_name: str, issuer_data: IssuerPublicData):
+        super().__init__(RequestType.UPDATE_ISSUER_DETAILS)
+        self.issuer_name = issuer_name
+        self.issuer_data = issuer_data
+
+class GetIssuerDetailsRequest(Request):
+    def __init__(self, issuer_name: str):
+        super().__init__(RequestType.GET_ISSUER_DETAILS)
+        self.issuer_name = issuer_name
+
+class IssuerDetailsResponse(Request):
+    def __init__(self, issuer_data: IssuerPublicData):
+        super().__init__(RequestType.ISSUER_DETAILS_RESPONSE)
+        self.issuer_data = issuer_data
 

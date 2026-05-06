@@ -11,8 +11,9 @@ MOCK_ISSUER_PARAMETERS = {
 }
 
 class IssuerInstance:
-    DEFAULT_VALID_UNTIL_WEEKS = 7
+    DEFAULT_EPOCH_SIZE_DAYS = 49
     DEFAULT_RE_ISSUANCE_WINDOW_DAYS = 7
+    DEFAULT_BASELINE_DATE_STR = "2026-01-01T00:00:00Z"
     
     class State:
         def __init__(self):
@@ -40,32 +41,58 @@ class IssuerInstance:
         else:
             self._private_key_pair = _private_key_pair
             self.public_key = api.PublicKeyBLS(self._private_key_pair.public_key) 
-        self.valid_until_weeks = None
+        self.epoch_size_days = None
         self.re_issuance_window_days = None
         self.issuer_parameters = None
+        self.baseline_date = None
 
-    def set_valid_until_weeks(self, weeks: int):
-        self.valid_until_weeks = weeks
+    def set_epoch_size_days(self, days: int):
+        self.epoch_size_days = days
         
     def set_re_issuance_window_days(self, days: int):
         self.re_issuance_window_days = days
         
     def set_issuer_parameters(self, params: dict):
         self.issuer_parameters = params
+        
+    def set_baseline_date(self, date_str: str):
+        self.baseline_date = date_str
 
     def get_configuration(self) -> str:
         current_params = self.issuer_parameters if self.issuer_parameters else MOCK_ISSUER_PARAMETERS
-        current_valid_until = self.valid_until_weeks if self.valid_until_weeks is not None else self.DEFAULT_VALID_UNTIL_WEEKS
+        current_epoch_size = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
         current_window = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
+        current_baseline = self.baseline_date if self.baseline_date else self.DEFAULT_BASELINE_DATE_STR
+        
+        days = current_epoch_size
+        epoch = timedelta(days=days)
+        baseline = datetime.fromisoformat(current_baseline.replace('Z', '+00:00'))
+        now = datetime.now(timezone.utc)
+        distance = now - baseline
+        
+        if distance.total_seconds() < 0:
+            current_active_boundary = baseline + epoch
+        else:
+            num_epochs = int(distance.total_seconds() // epoch.total_seconds())
+            current_active_boundary = baseline + epoch * (num_epochs + 1)
+            
+        current_epoch_starts = (current_active_boundary - epoch).isoformat(timespec='seconds').replace('+00:00', 'Z')
+        current_epoch_ends = current_active_boundary.isoformat(timespec='seconds').replace('+00:00', 'Z')
         
         config = [
             "--- Issuer Configuration ---",
             f"Parameters: {current_params}",
             f"Public Key (hex): {self.public_key.key.hex()}",
-            f"Valid Until (weeks): {current_valid_until}",
+            f"Baseline Date: {current_baseline}",
+            f"Epoch Size (days): {current_epoch_size}",
             f"Re-issuance Window (days): {current_window}",
+            f"Current Epoch: {current_epoch_starts} to {current_epoch_ends}",
             "----------------------------"
         ]
+        
+        if current_window > current_epoch_size:
+            config.append("WARNING: Re-issuance window is larger than the epoch size! Reissuance requests will always be accepted.\n")
+            
         return "\n".join(config)
 
 
@@ -230,7 +257,7 @@ class IssuerInstance:
             proof=None
         )
         
-        valid_until = self.generate_valid_until(old_expiry=old_expiry)
+        valid_until = self.generate_valid_until()
         revocation_material = self.generate_revocation_index()
         
         vc.credential_subject[vc.VALID_UNTIL_KEY] = valid_until
@@ -267,20 +294,25 @@ class IssuerInstance:
     def key_gen(self):
         return bbs.BlsKeyPair.generate_g2(seed = os.urandom(32))
 
-    def generate_valid_until(self, old_expiry: datetime = None) -> str:
-        weeks = self.valid_until_weeks if self.valid_until_weeks is not None else self.DEFAULT_VALID_UNTIL_WEEKS
-        epoch = timedelta(weeks=weeks)
+    def generate_valid_until(self) -> str:
+        days = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
+        epoch = timedelta(days=days)
         
-        if old_expiry is None:
-            expiry = datetime.now(timezone.utc) + epoch
+        baseline_str = self.baseline_date if self.baseline_date else self.DEFAULT_BASELINE_DATE_STR
+        baseline = datetime.fromisoformat(baseline_str.replace('Z', '+00:00'))
+        
+        now = datetime.now(timezone.utc)
+        distance = now - baseline
+        
+        if distance.total_seconds() < 0:
+            expiry = baseline + epoch
         else:
-            now = datetime.now(timezone.utc)
-            distance = now - old_expiry
-            if distance.total_seconds() < 0:
-                expiry = old_expiry + epoch
-            else:
-                num_epochs = int(distance.total_seconds() // epoch.total_seconds())
-                expiry = old_expiry + epoch * (num_epochs + 1)
+            num_epochs = int(distance.total_seconds() // epoch.total_seconds())
+            expiry = baseline + epoch * (num_epochs + 1)
+            
+        window = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
+        if (expiry - now) <= timedelta(days=window):
+            expiry += epoch
                 
         return expiry.isoformat(timespec='seconds').replace('+00:00', 'Z')
 
