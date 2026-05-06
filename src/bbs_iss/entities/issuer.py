@@ -4,12 +4,14 @@ import bbs_iss.interfaces.requests_api as api
 import bbs_iss.utils.utils as utils
 from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError
 from bbs_iss.interfaces.credential import VerifiableCredential
+from datetime import datetime, timedelta, timezone
 
 MOCK_ISSUER_PARAMETERS = {
     "issuer": "Mock-Issuer"
 }
 
 class IssuerInstance:
+    DEFAULT_VALID_UNTIL_WEEKS = 7
     
     class State:
         def __init__(self):
@@ -77,6 +79,19 @@ class IssuerInstance:
         )
         if vc.META_HASH_KEY not in vc.credential_subject:
             raise ValueError("META_HASH_KEY not found in credential subject")
+            
+        valid_until = self.generate_valid_until()
+        revocation_material = self.generate_revocation_index()
+        
+        vc.credential_subject[vc.VALID_UNTIL_KEY] = valid_until
+        vc.credential_subject[vc.REVOCATION_MATERIAL_KEY] = revocation_material
+        
+        for attr in request.revealed_attributes:
+            if attr.key == vc.VALID_UNTIL_KEY:
+                attr.message = valid_until
+            elif attr.key == vc.REVOCATION_MATERIAL_KEY:
+                attr.message = revocation_material
+
         meta_hash = vc.normalize_meta_fields() # Calculating metaHash
         vc.credential_subject[vc.META_HASH_KEY] = meta_hash # Appending metaHash to VC
         # Changing metaHash attribute in request
@@ -96,6 +111,18 @@ class IssuerInstance:
     def key_gen(self):
         return bbs.BlsKeyPair.generate_g2(seed = os.urandom(32))
 
+    def generate_valid_until(self, weeks: int = None) -> str:
+        if weeks is None:
+            weeks = self.DEFAULT_VALID_UNTIL_WEEKS
+        expiry = datetime.now(timezone.utc) + timedelta(weeks=weeks)
+        return expiry.isoformat(timespec='seconds').replace('+00:00', 'Z')
+
+    def generate_revocation_index(self) -> str:
+        return "123" # Mock implementation
+
+    def revoke_index(self, index: str):
+        # This method will be used in the future to mark the index as revoked in the revocation list.
+        pass
 
     def freshness_response(self):
         nonce = utils.gen_nonce()

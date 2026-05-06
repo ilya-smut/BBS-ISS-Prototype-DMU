@@ -52,6 +52,8 @@ class IssuanceAttributes:
 
 
     def build_commitment_append_meta(self, nonce: bytes, public_key: PublicKeyBLS):
+        self.append(VerifiableCredential.VALID_UNTIL_KEY, VerifiableCredential.VALID_UNTIL_PLACEHOLDER, AttributeType.REVEALED)
+        self.append(VerifiableCredential.REVOCATION_MATERIAL_KEY, VerifiableCredential.REVOCATION_MATERIAL_PLACEHOLDER, AttributeType.REVEALED)
         self.append(VerifiableCredential.META_HASH_KEY, VerifiableCredential.META_HASH_PLACEHOLDER, AttributeType.REVEALED)
         if not self.blinded_attributes:
             raise NoBlindedAttributes()

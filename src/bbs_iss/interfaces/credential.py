@@ -20,6 +20,10 @@ class VerifiableCredential:
     DEFAULT_TYPE = ["VerifiableCredential"]
     META_HASH_KEY = "metaHash"
     META_HASH_PLACEHOLDER = "PLACE-HOLDER-METAHASH"
+    VALID_UNTIL_KEY = "validUntil"
+    VALID_UNTIL_PLACEHOLDER = "PLACE-HOLDER-VALIDUNTIL"
+    REVOCATION_MATERIAL_KEY = "revocationMaterial"
+    REVOCATION_MATERIAL_PLACEHOLDER = "PLACE-HOLDER-REVOCATION"
 
     def __init__(
         self,
