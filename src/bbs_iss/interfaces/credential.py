@@ -284,7 +284,7 @@ class VerifiablePresentation:
 
         return h.hexdigest()
 
-    def build_bound_nonce(self, nonce: bytes) -> bytes:
+    def build_bound_nonce(self, nonce: bytes, commitment: bytes = None) -> bytes:
         """
         Produces an *effective nonce* that binds the VP's metadata to the
         verifier's challenge nonce.
@@ -299,6 +299,8 @@ class VerifiablePresentation:
         ----------
         nonce : bytes
             The original nonce supplied by the verifier.
+        commitment : bytes, optional
+            The commitment to the new hidden attributes for re-issuance.
 
         Returns
         -------
@@ -309,6 +311,9 @@ class VerifiablePresentation:
         h = hashlib.blake2b(digest_size=32)
         h.update(nonce)
         h.update(meta_hash_bytes)
+        if commitment:
+            h.update(b'vp.commitment')
+            h.update(commitment)
         return h.digest()
 
     # ── Verification ─────────────────────────────────────────────────
@@ -317,6 +322,7 @@ class VerifiablePresentation:
         self,
         pub_key: PublicKeyBLS,
         nonce: bytes,
+        commitment: bytes = None,
     ):
         """
         Constructs a ``bbs.VerifyProofRequest`` for this presentation.
@@ -333,6 +339,8 @@ class VerifiablePresentation:
         nonce : bytes
             The *original* nonce supplied by the verifier (before binding).
             This method applies ``build_bound_nonce`` internally.
+        commitment : bytes, optional
+            The commitment to the new hidden attributes for re-issuance.
 
         Returns
         -------
@@ -354,7 +362,7 @@ class VerifiablePresentation:
         )
 
         # Bind VP metadata to the verifier's nonce
-        bound_nonce = self.build_bound_nonce(nonce)
+        bound_nonce = self.build_bound_nonce(nonce, commitment=commitment)
 
         request = bbs.VerifyProofRequest(
             public_key=bbs_public_key,

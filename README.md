@@ -1,6 +1,6 @@
 # BBS-ISS-Prototype-DMU
 
-A Python prototype implementing **BBS+ blind issuance and selective disclosure** between an Issuer, a Holder, and a Verifier, using the [`ursa_bbs_signatures`](https://pypi.org/project/ursa-bbs-signatures/) library. The project demonstrates a complete credential lifecycle: a multi-round issuance protocol with blinded commitments, followed by Verifiable Presentation (VP) generation with zero-knowledge proof verification.
+A working proof-of-concept Python prototype for a **Privacy-Preserving Verifiable Credential System** utilizing **BBS+ signatures and Zero-Knowledge Proofs (ZKPs)**. Originally designed within the context of higher education institutions, this project enables individuals (Holders) to obtain digital credentials from organizations (Issuers) and selectively prove statements about their identity to third parties (Verifiers) while prioritizing data minimization and privacy. Built on top of the [`ursa_bbs_signatures`](https://pypi.org/project/ursa-bbs-signatures/) library, the prototype demonstrates a complete, secure credential lifecycle: multi-round blind issuance with Pedersen commitments, verifiable presentation generation with cryptographic binding, seamless credential re-issuance, and foundational revocation mechanics.
 
 ## Table of Contents
 
@@ -82,12 +82,9 @@ BBS-ISS-Prototype-DMU/
 │           └── utils.py            # Nonce generation, link secret generation
 ├── testing/
 │   ├── unit/                       # Pytest comprehensive unit test suite
-│   │   ├── test_attributes.py
-│   │   ├── test_credential.py
-│   │   ├── test_issuance_flow.py
-│   │   ├── test_participant_states.py
-│   │   ├── test_verifiable_presentation.py
-│   │   └── test_vp_flow.py         # Tests for Verifiable Presentation API
+│   │   ├── entities/               # Participant state and interaction tests
+│   │   ├── flows/                  # End-to-end multi-round protocol flows
+│   │   └── models/                 # Cryptographic payload and validation testing
 │   ├── vp-test.py                  # End-to-end issuance and presentation test script
 │   ├── issuance-test.py            # Issuance test script
 │   ├── playground.ipynb            # Interactive end-to-end issuance notebook
@@ -125,7 +122,7 @@ Holder                                        Issuer
 
 **Step 2 — Freshness Response:** The Issuer generates a random 32-byte nonce and returns it as a `FreshnessUpdateResponse`. This value binds the commitment to a specific session, preventing replay attacks.
 
-**Step 3 — Blind Sign Request:** The Holder builds a Pedersen commitment over its blinded attributes using the Issuer's nonce and public key. This step also appends a `metaHash` revealed attribute that deterministically hashes the credential's metadata fields (context, type, issuer, subject keys). It sends a `BlindSignRequest` containing the commitment, a zero-knowledge proof of correct commitment construction, the revealed attributes (including `metaHash`), and their indices.
+**Step 3 — Blind Sign Request:** The Holder builds a Pedersen commitment over its blinded attributes using the Issuer's nonce and public key. This step automatically appends three essential revealed metadata attributes: `metaHash` (which deterministically hashes the credential's contextual metadata), `validUntil` (expiration timestamp), and `revocationMaterial` (a bitstring index for future revocation checks). It sends a `BlindSignRequest` containing the commitment, a zero-knowledge proof of correct commitment construction, the revealed attributes, and their indices.
 
 **Step 4 — Forward VC Response:** The Issuer first pre-computes the `VerifiableCredential` skeleton from the revealed and blinded attribute indices, then re-calculates the `metaHash` on the constructed VC and overwrites the placeholder value in both the VC and the signing request. It then verifies the blinded commitment proof. If valid, it computes a blind BBS+ signature over the commitment and the revealed attributes, attaches the signature to the VC, and returns it as a `ForwardVCResponse`.
 
@@ -164,6 +161,39 @@ To prevent replay attacks and ensure cryptographic binding to the credential env
 
 ---
 
+### Re-issuance Protocol (Holder ↔ Issuer)
+
+The re-issuance protocol allows a Holder to request a renewed credential (e.g., updating the `validUntil` timestamp) while proving possession of their original credential via a Verifiable Presentation. This effectively binds the presentation of the old credential to the request for the new one.
+
+```
+Issuer                                        Holder
+  │                                              │
+  │<─── 1. Re-issuance Request ──────────────────│
+  │                                              │
+  │──── 2. FreshnessUpdateResponse (nonce) ─────>│
+  │                                              │
+  │<─── 3. ForwardVpAndCmtRequest ───────────────│
+  │     (VP of old VC, new commitment)           │
+  ├── verify VP & old VC validity                │
+  ├── verify commitment proof (bound to nonce)   │
+  ├── compute blind signature for new VC         │
+  │──── 4. ForwardVCResponse (new VC) ──────────>│
+  │                                              │
+  │                                              ├── unblind new signature
+  │                                              ├── verify new signature
+  │                                              └── store new credential
+```
+
+**Step 1 — Re-issuance Request:** The Holder initiates the process specifying the target credential and the attributes that must remain hidden.
+
+**Step 2 — Freshness Response:** The Issuer generates a challenge nonce for the session.
+
+**Step 3 — Forward VP & Commitment:** The Holder generates a zero-knowledge proof (VP) of the old credential. It also generates a *new* blinded Pedersen commitment over its secret attributes (using the *same* challenge nonce). Both the VP and the new commitment are bundled into a `ForwardVpAndCmtRequest` and sent to the Issuer.
+
+**Step 4 — New VC Response:** The Issuer verifies the VP (proving possession and validity of the old credential), checks the re-issuance window and revocation status, and verifies the new commitment proof against the same nonce. If valid, the Issuer issues a new Verifiable Credential with updated metadata (e.g., `validUntil`) and returns it. The Holder then unblinds and stores the renewed credential.
+
+---
+
 ## Module Reference
 
 ### Entities
@@ -194,10 +224,18 @@ Tracks whether the Issuer is currently processing a request.
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__(_private_key_pair=None)` | Optional `bbs.BlsKeyPair` | — | Generates or accepts a BLS12-381 G2 keypair. Exposes the public key as a `PublicKeyBLS` wrapper via `self.public_key`. |
-| `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse` | Main dispatch method. Routes `ISSUANCE` requests to `freshness_response()` and `BLIND_SIGN` requests to `issue_vc_blind()`. Raises `IssuerNotAvailable` if busy. |
-| `freshness_response()` | — | `FreshnessUpdateResponse` | Generates a 32-byte nonce via `utils.gen_nonce()`, transitions to busy state, returns nonce wrapped in a response. |
+| `set_valid_until_weeks(weeks)` | `int` | — | Sets the default credential expiration duration in weeks. |
+| `set_re_issuance_window_days(days)` | `int` | — | Sets the allowed time window before expiration when re-issuance is permitted. |
+| `set_issuer_parameters(params)` | `dict` | — | Sets arbitrary parameters like the issuer's name. |
+| `get_configuration()` | — | `str` | Returns a formatted string detailing the issuer's current configuration. |
+| `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse` | Main dispatch method. Routes `ISSUANCE` and `RE_ISSUANCE` requests to `freshness_response()`, `BLIND_SIGN` requests to `issue_vc_blind()`, and `FORWARD_VP_AND_CMT` to `re_issue_vc()`. Raises `IssuerNotAvailable` if busy. |
+| `freshness_response(request_type)` | `RequestType` | `FreshnessUpdateResponse` | Generates a 32-byte nonce via `utils.gen_nonce()`, transitions to busy state, returns nonce wrapped in a response. |
 | `blind_sign(request)` | `BlindSignRequest` | `bytes` | Verifies the blinded commitment proof, then computes a blind BBS+ signature. Raises `ProofValidityError` if the commitment proof fails. |
-| `issue_vc_blind(request)` | `BlindSignRequest` | `ForwardVCResponse` | Pre-computes a `VerifiableCredential` from the attribute metadata, calculates the `metaHash` via `normalize_meta_fields()`, updates it in both the VC and the signing request, calls `blind_sign()`, attaches the signature, and wraps the VC in a `ForwardVCResponse`. |
+| `issue_vc_blind(request)` | `BlindSignRequest` | `ForwardVCResponse` | Pre-computes a `VerifiableCredential` from the attribute metadata, appends validity and revocation fields, calculates the `metaHash`, updates it in both the VC and the signing request, calls `blind_sign()`, attaches the signature, and wraps the VC in a `ForwardVCResponse`. |
+| `re_issue_vc(request)` | `ForwardVpAndCmtRequest` | `ForwardVCResponse` | Verifies the presentation of the old credential, ensures attributes match the new request, checks re-issuance window limits, verifies the new commitment, computationally revokes the old index, and issues a new VC with updated expiry. |
+| `generate_valid_until(old_expiry=None)` | Optional `datetime` | `str` | Generates a new `validUntil` ISO-8601 string based on the current time or an existing expiration. |
+| `generate_revocation_index()` | — | `str` | Generates a revocation index identifier for the credential. |
+| `revoke_index(index)` | `str` | — | Marks the given index as revoked (mock implementation). |
 | `key_gen()` | — | `bbs.BlsKeyPair` | Generates a BLS12-381 G2 keypair from a random 32-byte seed. |
 
 ---
@@ -234,12 +272,14 @@ Tracks active interaction state including the Issuer's public key, attribute set
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__()` | — | — | Initializes empty state and a `credentials` dictionary mapping names to `(VerifiableCredential, PublicKeyBLS)` tuples. |
-| `process_request(request)` | `Request` | `BlindSignRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses to `blind_sign_request()` and `FORWARD_VC` responses to `unblind_verify_save_vc()`. Raises `HolderNotInInteraction` if no active interaction. |
+| `process_request(request)` | `Request` | `BlindSignRequest \| ForwardVpAndCmtRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses to `blind_sign_request()` or `forward_vp_and_cmt_request()` depending on original request. Routes `FORWARD_VC` responses to `unblind_verify_save_vc()`. Raises `HolderNotInInteraction` if no active interaction. |
 | `issuance_request(issuer_pub_key, attributes, cred_name)` | `PublicKeyBLS`, `IssuanceAttributes`, `str` | `VCIssuanceRequest` | Initializes the Holder's interaction state and returns an issuance request. |
-| `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Checks `blind_sign_request_ready`, stores the nonce, calls `build_commitment_append_meta()` (which also appends the `metaHash` placeholder attribute), and constructs a `BlindSignRequest`. Raises `HolderStateError` if preconditions are not met. |
+| `re_issuance_request(vc_name, always_hidden_keys=None)` | `str`, `list[str]` | `Request` | Prepares attributes from the existing credential for re-issuance, retaining those specified in `always_hidden_keys` as blinded. |
+| `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Checks `blind_sign_request_ready`, stores the nonce, calls `build_commitment_append_meta()`, and constructs a `BlindSignRequest`. Raises `HolderStateError` if preconditions are not met. |
+| `forward_vp_and_cmt_request(freshness)` | `bytes` | `ForwardVpAndCmtRequest` | Builds a new commitment and a Verifiable Presentation of the existing credential using the given nonce. |
 | `verify_vc(pub_key=None, vc=None, vc_name=None)` | optional `PublicKeyBLS`, optional `VerifiableCredential`, optional `str` | `bool` | Verifies a VC's BBS+ signature. Accepts either a VC object directly or a credential name to look up in `self.credentials`. Calls `vc.prepare_verification_request()` internally. |
 | `unblind_verify_save_vc(vc)` | `VerifiableCredential` | `bool` | Checks `unblind_ready`, unblinds the signature, fills in blinded attribute values in the VC, verifies the signature via `verify_vc()`, stores the credential alongside the issuer public key, clears interaction state, and returns the verification result. Raises `HolderStateError` if preconditions are not met, or `ProofValidityError` if signature verification fails. |
-| `build_vp(revealed_keys, nonce, issuer_pub_key=None, vc=None, vc_name=None, always_hidden_keys=None)` | `list[str]`, `bytes`, kwargs | `VerifiablePresentation` | Core ZKP construction logic. Resolves the credential, builds the VP envelope via `from_verifiable_credential()`, tags ProofMessages as `Revealed` or `Hidden`, derives the bound nonce via `vp.build_bound_nonce()`, and runs `bbs.create_proof()`. |
+| `build_vp(revealed_keys, nonce, issuer_pub_key=None, vc=None, vc_name=None, always_hidden_keys=None, commitment=None)` | `list[str]`, `bytes`, kwargs | `VerifiablePresentation` | Core ZKP construction logic. Resolves the credential, builds the VP envelope via `from_verifiable_credential()`, tags ProofMessages as `Revealed` or `Hidden`, derives the bound nonce (optionally hashing in a new `commitment`), and runs `bbs.create_proof()`. |
 | `present_credential(vp_request, vc_name, always_hidden_keys=None)` | `VPRequest`, `str`, optional `list[str]` | `ForwardVPResponse` | High-level API for responding to a verifier. Checks attribute availability, ensures no conflict with `always_hidden_keys`, delegates to `build_vp()`, and returns the `ForwardVPResponse`. |
 
 ---
@@ -362,6 +402,7 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `FreshnessUpdateResponse` | `FRESHNESS` | `nonce: bytes` | Carries the Issuer's freshness nonce. |
 | `BlindSignRequest` | `BLIND_SIGN` | `revealed_attributes`, `commitment`, `total_messages`, `proof`, `messages_with_blinded_indices` | Constructed directly from an `IssuanceAttributes` instance. Carries all data the Issuer needs to verify the commitment and compute a blind signature. |
 | `ForwardVCResponse` | `FORWARD_VC` | `vc: VerifiableCredential` | Carries the issued credential back to the Holder. |
+| `ForwardVpAndCmtRequest` | `FORWARD_VP_AND_CMT` | `vp`, `commitment`, `proof`, `revealed_attributes` | Used during re-issuance to present an existing credential alongside a blinded commitment for the new one. |
 | `VPRequest` | `VP_REQUEST` | `requested_attributes: list[str]`, `nonce: bytes` | Dispatched by Verifier to request specific attributes and bind the proof to a challenge. |
 | `ForwardVPResponse` | `FORWARD_VP` | `vp: VerifiablePresentation`, `pub_key: PublicKeyBLS` | Carries the ZKP and revealed attributes back to the Verifier. |
 
@@ -536,6 +577,27 @@ is_vp_valid, revealed_attrs, vp_obj = verifier.process_request(vp_response)
 print(f"Presentation validation success: {is_vp_valid}")
 print(f"Revealed Attributes: {revealed_attrs}")
 # Output: {'name': 'Alice', 'studentId': 'S-001'}
+
+# ─── 5. RE-ISSUANCE FLOW ─────────────────────────────────────────────
+# Holder initiates re-issuance for the existing credential
+re_init_req = holder.re_issuance_request(
+    vc_name="test-cred",
+    always_hidden_keys=["secret"]
+)
+
+# Issuer provides freshness challenge
+re_freshness = issuer.process_request(re_init_req)
+
+# Holder builds VP of old credential and commitment for new credential
+vp_and_cmt_req = holder.process_request(re_freshness)
+
+# Issuer validates VP, commitment, checks window, and issues new VC
+re_forward_vc = issuer.process_request(vp_and_cmt_req)
+
+# Holder unblinds and saves the renewed credential
+is_reissued_valid = holder.process_request(re_forward_vc)
+
+print(f"Credential re-issuance success: {is_reissued_valid}")
 ```
 
 ---

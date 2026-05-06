@@ -1,6 +1,6 @@
 # Unit Testing Suite
 
-This directory contains the core functional and cryptographic integrity tests for the `BBS-ISS-Prototype-DMU` project. Tests are designed using `pytest` and prioritize evaluating state isolation, behavioral protocol flows, and mathematical edge cases over rigid implementations.
+This directory contains the core functional and cryptographic integrity tests for the `BBS-ISS-Prototype-DMU` project. Tests are designed using `pytest` and are modularly separated into `entities`, `flows`, and `models` to evaluate state isolation, behavioral protocol flows, and mathematical edge cases respectively.
 
 ## Running the Tests
 
@@ -11,36 +11,30 @@ Ensure your virtual environment is activated and the `[dev]` dependencies are in
 pytest testing/unit/
 
 # Run a specific test file with verbose output
-pytest testing/unit/test_credential.py -v
+pytest testing/unit/models/test_credential.py -v
 ```
 
 ---
 
-## Test Modules
+## Test Categories
 
-### `test_credential.py`
-Focuses intensely on the verifiable credential data structure and the specific cryptographic requirements of BBS+ binding.
+### `models/` - Cryptographic Payloads & Validation
+Focuses intensely on the verifiable credential data structures and specific cryptographic requirements of BBS+ binding.
 
-- **`test_order_preserving_hashing`**: Because BBS+ signatures are order-sensitive (attributes are mapped computationally to vector indices), the `normalize_meta_fields` logic must strictly preserve insertion order when hashing credential subject metadata. This test ensures that dynamically reordering identical attributes yields a fundamentally different signature target hash.
-- **`test_hash_changes_on_modification`**: Tests that mutating any core field (`@context`, `type`, `issuer`, or `credentialSubject` keys) successfully fractures the `metaHash`.
-- **`test_serialization_roundtrip`**: Verifies that standard serialization mechanics (`to_dict`, `from_dict`, `to_json`, `from_json`) preserve both the payload and the cryptographic signature payload without data-loss.
-- **Signature Invalidation Tests (`test_signature_invalid_on_context_change`, etc.)**: Simulates a legitimate issuance, then mutates various segments of the credential, verifying that the BBS+ signature fails on attempting to verify the broken mathematical bindings.
+- **`test_credential.py`**: Ensures order-preserving hashing for BBS+ signatures, validates that structural mutations (context, type, issuer) successfully fracture the `metaHash`, checks JSON/Dict serialization roundtrips, and tests signature invalidation when metadata fields are tampered with.
+- **`test_attributes.py`**: Validates internal attribute mappings. Checks that attempting to blindly sign zero hidden attributes actively rejects the request, and verifies that interleaving `REVEALED` and `HIDDEN` properties successfully maintain sequential indexing essential for BBS+.
+- **`test_verifiable_presentation.py`**: Evaluates VP envelope structure. Tests correct extraction of VP subjects, dynamic binding of nonces across the envelope, and verifies that modifying the challenge or metadata effectively breaks the cryptographic binding.
 
-### `test_issuance_flow.py`
-Evaluates the core 4-round protocol mechanics.
+### `entities/` - Participant State & Guardrails
+Strictly enforces state-machine constraints and behavioral boundaries for each participant.
 
-- **`test_successful_issuance`**: Executes 500 complete multi-round issuances (request → freshness → blind_sign → forward_vc) including pedersen commitments, zero-knowledge proofs, blind signing, and unblinding. Demonstrates that the FFI integration and protocol abstractions operate flawlessly and reliably.
-- **`test_concurrent_issuance_separation`**: Initiates multiple parallel issuances across multiple Holder and Issuer instances. Evaluates structural separation, ensuring freshness nonces and cryptographic state objects do not cross-pollinate or leak.
+- **`test_issuer.py`**: Validates the `IssuerInstance`. Tests rejection of overlapping issuance sessions, ensuring an `IssuerNotAvailable` error is raised. Contains cryptographic checks against replay attacks, ensuring valid proofs with wrong nonces are properly rejected with a `ProofValidityError`.
+- **`test_holder.py`**: Tests `HolderInstance` logic, specifically Verifiable Presentation extraction rules. Verifies out-of-order response rejection (`HolderNotInInteraction`), and enforces presentation guards like hidden key conflict rejections, missing attribute rejections, and metadata protections.
+- **`test_verifier.py`**: Tests `VerifierInstance` state machine. Ensures that processing VPs without a pending challenge raises errors, verifies rejection of double concurrent presentations, and validates successful state resets after verification.
 
-### `test_participant_states.py`
-Strictly enforces state-machine constraints and cryptographic proof validation boundaries.
+### `flows/` - End-to-End Protocols
+Evaluates the core multi-round protocol mechanics.
 
-- **`test_issuer_rejects_overlapping_sessions`**: Validates the `IssuerInstance.State` constraints. Asserts `IssuerNotAvailable` is raised if a new `ISSUANCE` request hits while an interaction is already in progress.
-- **`test_holder_rejects_out_of_order_responses`**: Evaluates `HolderInstance` state transitions. Proves the Holder strictly drops protocol violations, like receiving a `ForwardVCResponse` before a `FreshnessUpdateResponse`, raising `HolderStateError`.
-- **`test_issuer_rejects_replayed_proof`**: A highly specific cryptographic evaluation against replay attacks. Generates a perfectly valid BBS+ blinded commitment proof in Session 2 and feeds it to Session 1. The proof will parse perfectly through the Rust FFI framework seamlessly (valid lengths & G1/G2 compressions) but perfectly asserts `ProofValidityError` mathematically because it misaligns with Session 1's freshly generated security nonce.
-
-### `test_attributes.py`
-Validates the internal mapping and extraction architectures translating pythonic abstractions down to `ursa-bbs-signatures` formats.
-
-- **`test_commitment_requires_hidden_attributes`**: Validates that blindly signing zero hidden configurations actively rejects the request with a `NoBlindedAttributes` execution stop. 
-- **`test_attribute_sequencing_and_indexing`**: Checks that mixing and interlacing `REVEALED` and `HIDDEN` properties successfully handles abstract separation simultaneously with absolute sequential vector assignments necessary for BBS+ verifications.
+- **`test_issuance.py`**: Executes complete multi-round issuances including pedersen commitments, zero-knowledge proofs, blind signing, and unblinding. Verifies that the FFI integration and protocol abstractions operate reliably. Tests concurrent issuances across multiple Holders and Issuers to prevent state pollution.
+- **`test_presentation_flow.py`**: Tests full selective disclosure mechanics, including partial disclosures and verification completeness. Includes attack simulations like forging VPs with unrequested attributes or injecting rogue attributes to bypass validation.
+- **`test_reissuance.py`**: Thoroughly verifies the "Forward VP with Commitment" re-issuance flow. Tests reissuance stress handling (100 parallel requests), strict replay protections (nonce or commitment substitutions), boundary enforcement for expiration, state resetting on failure, and checks the integrity of the new re-issued credentials (updated `validUntil`).

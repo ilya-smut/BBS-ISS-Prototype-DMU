@@ -117,6 +117,7 @@ class RequestType(Enum):
     FORWARD_VP = 8
     VRF_ACKNOWLEDGE = 9
     ERROR = 10
+    FORWARD_VP_AND_CMT = 11
 
 
 class Request:
@@ -160,4 +161,14 @@ class ForwardVPResponse(Request):
         super().__init__(RequestType.FORWARD_VP)
         self.vp = vp
         self.pub_key = pub_key
+
+class ForwardVpAndCmtRequest(Request):
+    def __init__(self, vp: VerifiablePresentation, attributes: IssuanceAttributes):
+        super().__init__(RequestType.FORWARD_VP_AND_CMT)
+        self.vp = vp
+        self.commitment = attributes.get_commitment()
+        self.proof = attributes.get_proof()
+        self.revealed_attributes = attributes.get_revealed_attributes()
+        self.messages_with_blinded_indices = attributes.get_messages_with_blinded_indices()
+        self.total_messages = attributes.size
 

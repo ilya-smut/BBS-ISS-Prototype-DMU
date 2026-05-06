@@ -8,13 +8,14 @@ from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresen
 class HolderInstance:
 
     class State:
-        def __init__(self, awaiting: bool = False, freshness: bytes = None, issuer_pub_key: api.PublicKeyBLS = None, attributes: api.IssuanceAttributes = None, cred_name: str = None, original_request: api.RequestType = None):
+        def __init__(self, awaiting: bool = False, freshness: bytes = None, issuer_pub_key: api.PublicKeyBLS = None, attributes: api.IssuanceAttributes = None, cred_name: str = None, original_request: api.RequestType = None, always_hidden_keys: list[str] = None):
             self.awaiting = awaiting
             self.freshness = freshness
             self.issuer_pub_key = issuer_pub_key
             self.attributes = attributes
             self.cred_name = cred_name
             self.original_request = original_request
+            self.always_hidden_keys = always_hidden_keys
         
         def start_issuance_interaction(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str, original_request: api.RequestType):
             self.awaiting = True
@@ -22,6 +23,14 @@ class HolderInstance:
             self.attributes = attributes
             self.cred_name = cred_name
             self.original_request = original_request
+
+        def start_re_issuance_interaction(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str, always_hidden_keys: list[str] = None):
+            self.awaiting = True
+            self.issuer_pub_key = issuer_pub_key
+            self.attributes = attributes
+            self.cred_name = cred_name
+            self.original_request = api.RequestType.RE_ISSUANCE
+            self.always_hidden_keys = always_hidden_keys
 
         def add_freshness(self, nonce):
             self.freshness = nonce
@@ -33,6 +42,7 @@ class HolderInstance:
             self.attributes = None
             self.cred_name = None
             self.original_request = None
+            self.always_hidden_keys = None
 
         @property
         def blind_sign_request_ready(self) -> bool:
@@ -40,7 +50,11 @@ class HolderInstance:
 
         @property
         def unblind_ready(self) -> bool:
-            return (self.awaiting and self.original_request == api.RequestType.ISSUANCE and bool(self.freshness))
+            return (self.awaiting and (self.original_request == api.RequestType.ISSUANCE or self.original_request == api.RequestType.RE_ISSUANCE) and bool(self.freshness))
+
+        @property
+        def forward_vp_and_cmt_ready(self) -> bool:
+            return (self.awaiting and self.original_request == api.RequestType.RE_ISSUANCE and (not bool(self.freshness)))
 
     def __init__(self):
         self.state = self.State()
@@ -51,7 +65,12 @@ class HolderInstance:
         if not self.state.awaiting:
             raise HolderNotInInteraction("No active interaction")
         if request.request_type == api.RequestType.FRESHNESS:
-            return self.blind_sign_request(request.nonce)
+            if self.state.original_request == api.RequestType.ISSUANCE:
+                return self.blind_sign_request(request.nonce)
+            elif self.state.original_request == api.RequestType.RE_ISSUANCE:
+                return self.forward_vp_and_cmt_request(request.nonce)
+            else:
+                raise ValueError("Invalid original request state")
         elif request.request_type == api.RequestType.FORWARD_VC:
             return self.unblind_verify_save_vc(request.vc)           
         else:
@@ -61,13 +80,61 @@ class HolderInstance:
         self.state.start_issuance_interaction(issuer_pub_key, attributes, cred_name, api.RequestType.ISSUANCE)
         request = api.VCIssuanceRequest()
         return request
-    
+
+    def re_issuance_request(self, vc_name: str, always_hidden_keys: list[str] = None):
+        if vc_name not in self.credentials:
+            raise ValueError(f"Credential '{vc_name}' not found")
+        stored_vc, stored_pub_key = self.credentials[vc_name]
+        
+        new_attributes = api.IssuanceAttributes()
+        enforced_hidden = set()
+        if always_hidden_keys:
+            enforced_hidden.update(always_hidden_keys)
+            
+        for key, value in stored_vc.credential_subject.items():
+            if key in [VerifiableCredential.VALID_UNTIL_KEY, VerifiableCredential.REVOCATION_MATERIAL_KEY, VerifiableCredential.META_HASH_KEY]:
+                continue
+            if key in enforced_hidden:
+                new_attributes.append(key, value, api.AttributeType.HIDDEN)
+            else:
+                new_attributes.append(key, value, api.AttributeType.REVEALED)
+                
+        self.state.start_re_issuance_interaction(stored_pub_key, new_attributes, vc_name, always_hidden_keys)
+        request = api.Request(api.RequestType.RE_ISSUANCE)
+        return request
+
     def blind_sign_request(self, freshness: bytes):
         if not self.state.blind_sign_request_ready:
             raise HolderStateError("Invalid holder state", state=self.state)
         self.state.add_freshness(freshness)
         self.state.attributes.build_commitment_append_meta(self.state.freshness, self.state.issuer_pub_key)
         request = api.BlindSignRequest(self.state.attributes)
+        return request
+    
+    def forward_vp_and_cmt_request(self, freshness: bytes):
+        if not self.state.forward_vp_and_cmt_ready:
+            raise HolderStateError("Invalid holder state", state=self.state)
+        self.state.add_freshness(freshness)
+        self.state.attributes.build_commitment_append_meta(self.state.freshness, self.state.issuer_pub_key)
+        
+        # Build VP
+        stored_vc, _ = self.credentials[self.state.cred_name]
+        
+        enforced_hidden = set()
+        if self.state.always_hidden_keys:
+            enforced_hidden.update(self.state.always_hidden_keys)
+            
+        revealed_keys = [k for k in stored_vc.credential_subject.keys() if k not in enforced_hidden]
+        
+        vp = self.build_vp(
+            revealed_keys=revealed_keys,
+            nonce=freshness,
+            vc_name=self.state.cred_name,
+            always_hidden_keys=self.state.always_hidden_keys,
+            commitment=self.state.attributes.get_commitment()
+        )
+        
+        request = api.ForwardVpAndCmtRequest(vp, self.state.attributes)
         return request
     
     def verify_vc(self, pub_key: api.PublicKeyBLS = None, vc: VerifiableCredential = None, vc_name: str = None):
@@ -118,6 +185,7 @@ class HolderInstance:
         vc: VerifiableCredential = None,
         vc_name: str = None,
         always_hidden_keys: list[str] = None,
+        commitment: bytes = None,
     ) -> VerifiablePresentation:
         """
         Builds a Verifiable Presentation with a BBS+ zero-knowledge proof.
@@ -139,6 +207,8 @@ class HolderInstance:
         always_hidden_keys : list[str], optional
             Application-level keys (e.g. link secret) that must never be
             revealed regardless of *revealed_keys*.
+        commitment : bytes, optional
+            The commitment to bind to the VP for re-issuance.
 
         Returns
         -------
@@ -155,8 +225,8 @@ class HolderInstance:
         if not issuer_pub_key:
             raise ValueError("issuer_pub_key is required when presenting a VC directly")
 
-        # Keys that are always hidden: metaHash (internal) + caller-supplied
-        enforced_hidden = {VerifiableCredential.META_HASH_KEY}
+        # Keys that are always hidden: caller-supplied
+        enforced_hidden = set()
         if always_hidden_keys:
             enforced_hidden.update(always_hidden_keys)
 
@@ -187,7 +257,7 @@ class HolderInstance:
         bbs_public_key = bls_key_pair.get_bbs_key(total_messages)
 
         # ── Build bound nonce and create proof ───────────────────────
-        bound_nonce = vp.build_bound_nonce(nonce)
+        bound_nonce = vp.build_bound_nonce(nonce, commitment=commitment)
 
         proof_request = bbs.CreateProofRequest(
             public_key=bbs_public_key,
