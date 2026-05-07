@@ -3,6 +3,7 @@ import bbs_iss.interfaces.requests_api as api
 from bbs_iss.utils.utils import gen_nonce
 from bbs_iss.interfaces.credential import VerifiablePresentation
 from bbs_iss.exceptions.exceptions import VerifierStateError, VerifierNotInInteraction
+from bbs_iss.utils.cache import PublicDataCache
 
 class VerifierInstance:
     class State:
@@ -16,6 +17,9 @@ class VerifierInstance:
             self.attributes = attributes
             self.awaiting = True
             self.type = api.RequestType.VP_REQUEST
+        def start_registry_interaction(self):
+            self.awaiting = True
+            self.type = api.RequestType.GET_ISSUER_DETAILS
         def end_interaction(self):
             self.freshness = None
             self.attributes = None
@@ -24,9 +28,13 @@ class VerifierInstance:
         @property
         def available(self) -> bool:
             return not self.awaiting
+        @property
+        def registry_interaction_ready(self) -> bool:
+            return self.awaiting and self.type == api.RequestType.GET_ISSUER_DETAILS
     
     def __init__(self):
         self.state = self.State()
+        self.public_data_cache = PublicDataCache()
 
     def presentation_request(self, requested_attributes: list[str]):
         if not self.state.available:
@@ -38,10 +46,29 @@ class VerifierInstance:
     def process_request(self, request: api.Request):
         if self.state.available:
             raise VerifierNotInInteraction("No active interaction")
-        if request.request_type == api.RequestType.FORWARD_VP:
+        elif request.request_type == api.RequestType.FORWARD_VP:
             return self.verify_vp(request.vp, request.pub_key)
+        elif request.request_type == api.RequestType.ISSUER_DETAILS_RESPONSE:
+            if not self.state.registry_interaction_ready:
+                self.state.end_interaction()
+                raise VerifierStateError("Invalid verifier state for registry response", state=self.state)
+            if request.issuer_data:
+                self.public_data_cache.update(request.issuer_data.issuer_name, request.issuer_data)
+            self.state.end_interaction()
+            return request.issuer_data
         else:
             raise ValueError("Invalid request type")
+            
+    def get_issuer_details(self, issuer_name: str) -> api.IssuerPublicData | api.GetIssuerDetailsRequest:
+        """
+        Retrieves issuer details from local cache or generates a registry request.
+        """
+        data = self.public_data_cache.get(issuer_name)
+        if data:
+            return data
+            
+        self.state.start_registry_interaction()
+        return api.GetIssuerDetailsRequest(issuer_name)
         
     def verify_vp(self, vp: VerifiablePresentation, pub_key: api.PublicKeyBLS) -> tuple[bool, dict[str, str] | None, VerifiablePresentation]:
         """

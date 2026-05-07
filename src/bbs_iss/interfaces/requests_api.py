@@ -64,6 +64,32 @@ class IssuerPublicData:
         return cls.from_dict(json.loads(json_str))
 
 
+@dataclass
+class CacheEntry:
+    issuer_data: IssuerPublicData
+    obtained_at: str  # ISO 8601 timestamp (UTC)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "issuer_data": self.issuer_data.to_dict(),
+            "obtained_at": self.obtained_at
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CacheEntry:
+        return cls(
+            issuer_data=IssuerPublicData.from_dict(data["issuer_data"]),
+            obtained_at=data["obtained_at"]
+        )
+
+    def to_json(self, indent: int = 4) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> CacheEntry:
+        return cls.from_dict(json.loads(json_str))
+
+
 class AttributeType(Enum):
     REVEALED = 1
     HIDDEN = 2

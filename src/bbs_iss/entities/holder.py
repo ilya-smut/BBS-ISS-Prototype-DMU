@@ -3,6 +3,7 @@ import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, HolderNotInInteraction, HolderStateError, ProofValidityError
 from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresentation
+from bbs_iss.utils.cache import PublicDataCache
 
 
 class HolderInstance:
@@ -16,6 +17,7 @@ class HolderInstance:
             self.cred_name = cred_name
             self.original_request = original_request
             self.always_hidden_keys = always_hidden_keys
+            self.pending_registry_request = None
         
         def start_issuance_interaction(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str, original_request: api.RequestType):
             self.awaiting = True
@@ -34,6 +36,10 @@ class HolderInstance:
 
         def add_freshness(self, nonce):
             self.freshness = nonce
+
+        def start_registry_interaction(self):
+            self.awaiting = True
+            self.pending_registry_request = api.RequestType.GET_ISSUER_DETAILS
         
         def end_interaction(self):
             self.awaiting = False
@@ -43,6 +49,7 @@ class HolderInstance:
             self.cred_name = None
             self.original_request = None
             self.always_hidden_keys = None
+            self.pending_registry_request = None
 
         @property
         def blind_sign_request_ready(self) -> bool:
@@ -56,9 +63,14 @@ class HolderInstance:
         def forward_vp_and_cmt_ready(self) -> bool:
             return (self.awaiting and self.original_request == api.RequestType.RE_ISSUANCE and (not bool(self.freshness)))
 
+        @property
+        def registry_interaction_ready(self) -> bool:
+            return self.awaiting and self.pending_registry_request == api.RequestType.GET_ISSUER_DETAILS
+
     def __init__(self):
         self.state = self.State()
         self.credentials = {}
+        self.public_data_cache = PublicDataCache()
     
 
     def process_request(self, request: api.Request):
@@ -73,8 +85,27 @@ class HolderInstance:
                 raise ValueError("Invalid original request state")
         elif request.request_type == api.RequestType.FORWARD_VC:
             return self.unblind_verify_save_vc(request.vc)           
+        elif request.request_type == api.RequestType.ISSUER_DETAILS_RESPONSE:
+            if not self.state.registry_interaction_ready:
+                self.state.end_interaction()
+                raise HolderStateError("Invalid holder state for registry response", state=self.state)
+            if request.issuer_data:
+                self.public_data_cache.update(request.issuer_data.issuer_name, request.issuer_data)
+            self.state.end_interaction()
+            return request.issuer_data
         else:
             raise ValueError("Invalid request type")
+            
+    def get_issuer_details(self, issuer_name: str) -> api.IssuerPublicData | api.GetIssuerDetailsRequest:
+        """
+        Retrieves issuer details from local cache or generates a registry request.
+        """
+        data = self.public_data_cache.get(issuer_name)
+        if data:
+            return data
+            
+        self.state.start_registry_interaction()
+        return api.GetIssuerDetailsRequest(issuer_name)
             
     def issuance_request(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str):
         self.state.start_issuance_interaction(issuer_pub_key, attributes, cred_name, api.RequestType.ISSUANCE)
