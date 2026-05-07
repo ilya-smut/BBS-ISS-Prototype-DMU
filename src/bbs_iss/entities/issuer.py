@@ -2,7 +2,7 @@ import os
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 import bbs_iss.utils.utils as utils
-from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError
+from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError, IssuerStateError
 from bbs_iss.interfaces.credential import VerifiableCredential
 from datetime import datetime, timedelta, timezone
 
@@ -20,18 +20,27 @@ class IssuerInstance:
             self.available = True
             self.freshness = None
             self.type = None
-        def start_interaction(self, type: api.RequestType, nonce):
+            self.pending_data = None
+
+        def start_interaction(self, type: api.RequestType, nonce, pending_data=None):
             self.freshness = nonce
             self.available = False
             self.type = type
+            self.pending_data = pending_data
+
         def end_interaction(self):
             self.freshness = None
             self.available = True
             self.type = None
+            self.pending_data = None
             
         @property
         def re_issuance_ready(self) -> bool:
             return (not self.available and self.type == api.RequestType.RE_ISSUANCE and self.freshness is not None)
+
+        @property
+        def registry_interaction_ready(self) -> bool:
+            return (not self.available and self.type in [api.RequestType.REGISTER_ISSUER_DETAILS, api.RequestType.UPDATE_ISSUER_DETAILS])
     
     def __init__(self, _private_key_pair: bbs.BlsKeyPair = None):
         self.state = self.State()
@@ -107,7 +116,7 @@ class IssuerInstance:
             return self.freshness_response(api.RequestType.RE_ISSUANCE)
         elif request.request_type == api.RequestType.BLIND_SIGN:
             if self.state.type != api.RequestType.ISSUANCE:
-                raise ValueError("Invalid state for blind sign")
+                raise IssuerStateError("Invalid state for blind sign", state=self.state)
             try:
                 return self.issue_vc_blind(request)
             except Exception as e:
@@ -115,15 +124,23 @@ class IssuerInstance:
                 raise e
         elif request.request_type == api.RequestType.FORWARD_VP_AND_CMT:
             if not self.state.re_issuance_ready:
-                raise ValueError("Invalid state for re-issuance")
+                raise IssuerStateError("Invalid state for re-issuance", state=self.state)
             try:
                 return self.re_issue_vc(request)
             except Exception as e:
                 self.state.end_interaction()
                 raise e
+        elif request.request_type == api.RequestType.ISSUER_DETAILS_RESPONSE:
+            if not self.state.registry_interaction_ready:
+                self.state.end_interaction()
+                raise IssuerStateError("Invalid state for receiving issuer details response", state=self.state)
+                
+            success = request.issuer_data == self.state.pending_data
+            self.state.end_interaction()
+            return success
         else:
             self.state.end_interaction()
-            raise ValueError("Invalid request type")
+            raise ValueError(f"Invalid request type: {request.request_type}")
 
     def blind_sign(self, request: api.BlindSignRequest):
         ver_commitment_req = bbs.VerifyBlindedCommitmentRequest(
@@ -327,3 +344,37 @@ class IssuerInstance:
         nonce = utils.gen_nonce()
         self.state.start_interaction(request_type, nonce)
         return api.FreshnessUpdateResponse(nonce)
+
+    def register_issuer(self, initial_bitstring: str = "00") -> api.RegisterIssuerDetailsRequest:
+        issuer_name = self.issuer_parameters["issuer"] if self.issuer_parameters and "issuer" in self.issuer_parameters else MOCK_ISSUER_PARAMETERS["issuer"]
+        epoch_size = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
+        window_days = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
+        
+        issuer_data = api.IssuerPublicData(
+            issuer_name=issuer_name,
+            public_key=self.public_key,
+            revocation_bitstring=initial_bitstring,
+            valid_until_weeks=epoch_size // 7,
+            validity_window_days=window_days
+        )
+        
+        self.state.start_interaction(api.RequestType.REGISTER_ISSUER_DETAILS, None, pending_data=issuer_data)
+        
+        return api.RegisterIssuerDetailsRequest(issuer_name, issuer_data)
+
+    def update_issuer_details(self, new_bitstring: str) -> api.UpdateIssuerDetailsRequest:
+        issuer_name = self.issuer_parameters["issuer"] if self.issuer_parameters and "issuer" in self.issuer_parameters else MOCK_ISSUER_PARAMETERS["issuer"]
+        epoch_size = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
+        window_days = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
+        
+        issuer_data = api.IssuerPublicData(
+            issuer_name=issuer_name,
+            public_key=self.public_key,
+            revocation_bitstring=new_bitstring,
+            valid_until_weeks=epoch_size // 7,
+            validity_window_days=window_days
+        )
+        
+        self.state.start_interaction(api.RequestType.UPDATE_ISSUER_DETAILS, None, pending_data=issuer_data)
+        
+        return api.UpdateIssuerDetailsRequest(issuer_name, issuer_data)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 import ursa_bbs_signatures as bbs
+import json
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from dataclasses import dataclass
 from bbs_iss.exceptions.exceptions import AttributesNotCommitted, NoBlindedAttributes, NoRevealedAttributes
 from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresentation
@@ -10,6 +11,11 @@ from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresen
 class PublicKeyBLS:
     def __init__(self, public_key: bytes):
         self.key = public_key
+
+    def __eq__(self, other):
+        if not isinstance(other, PublicKeyBLS):
+            return False
+        return self.key == other.key
 
 
 class SigningPublicKey:
@@ -25,10 +31,37 @@ class SigningPublicKey:
 
 @dataclass
 class IssuerPublicData:
+    issuer_name: str
     public_key: PublicKeyBLS
     revocation_bitstring: str
     valid_until_weeks: int
     validity_window_days: int
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "issuer_name": self.issuer_name,
+            "public_key": self.public_key.key.hex(),
+            "revocation_bitstring": self.revocation_bitstring,
+            "valid_until_weeks": self.valid_until_weeks,
+            "validity_window_days": self.validity_window_days
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> IssuerPublicData:
+        return cls(
+            issuer_name=data["issuer_name"],
+            public_key=PublicKeyBLS(bytes.fromhex(data["public_key"])),
+            revocation_bitstring=data["revocation_bitstring"],
+            valid_until_weeks=data["valid_until_weeks"],
+            validity_window_days=data["validity_window_days"]
+        )
+
+    def to_json(self, indent: int = 4) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> IssuerPublicData:
+        return cls.from_dict(json.loads(json_str))
 
 
 class AttributeType(Enum):
@@ -203,8 +236,10 @@ class GetIssuerDetailsRequest(Request):
         super().__init__(RequestType.GET_ISSUER_DETAILS)
         self.issuer_name = issuer_name
 
+from typing import Optional
+
 class IssuerDetailsResponse(Request):
-    def __init__(self, issuer_data: IssuerPublicData):
+    def __init__(self, issuer_data: Optional[IssuerPublicData]):
         super().__init__(RequestType.ISSUER_DETAILS_RESPONSE)
         self.issuer_data = issuer_data
 
