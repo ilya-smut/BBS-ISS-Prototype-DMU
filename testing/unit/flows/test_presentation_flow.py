@@ -5,6 +5,7 @@ import ursa_bbs_signatures as bbs
 from bbs_iss.entities.issuer import IssuerInstance
 from bbs_iss.entities.holder import HolderInstance
 from bbs_iss.entities.verifier import VerifierInstance
+from bbs_iss.entities.registry import RegistryInstance
 from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresentation
 from bbs_iss.exceptions.exceptions import VerifierNotInInteraction, VerifierStateError
 import bbs_iss.interfaces.requests_api as api
@@ -44,9 +45,40 @@ def issued_credential():
     return holder, issuer, cred_name
 
 
+def _sync_verifier(verifier, issuers: list):
+    """Helper: registers issuers and syncs verifier cache."""
+    registry = RegistryInstance()
+    for issuer in issuers:
+        reg_req = issuer.register_issuer()
+        reg_resp = registry.process_request(reg_req)
+        issuer.process_request(reg_resp)
+    
+    bulk_req = verifier.fetch_all_issuer_details()
+    bulk_resp = registry.process_request(bulk_req)
+    verifier.process_request(bulk_resp)
+
+
+def _process_vp(verifier, registry, response):
+    """
+    Helper: processes a VP response, handling potential registry resolution.
+    
+    This is necessary because some tests (e.g., tampering or key mismatches) 
+    deliberately trigger the Verifier's resolution logic. In these cases, 
+    process_request() returns a GetIssuerDetailsRequest instead of a result tuple.
+    This helper completes the interaction loop with the registry so the 
+    test can receive the final (False, ...) result.
+    """
+    res = verifier.process_request(response)
+    if isinstance(res, api.GetIssuerDetailsRequest):
+        reg_resp = registry.process_request(res)
+        res = verifier.process_request(reg_resp)
+    return res
+
+
 def _full_entity_flow(holder, issuer, cred_name, requested_attrs):
     """Helper: runs the VP entity flow and returns the verifier result tuple."""
     verifier = VerifierInstance()
+    _sync_verifier(verifier, [issuer])
     vp_request = verifier.presentation_request(requested_attributes=requested_attrs)
     vp_response = holder.present_credential(
         vp_request=vp_request,
@@ -294,6 +326,7 @@ class TestEntityVPFlow:
         """VP survives JSON roundtrip and still verifies via entity API."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name", "age"])
         vp_response = holder.present_credential(
             vp_request=vp_request,
@@ -306,7 +339,8 @@ class TestEntityVPFlow:
         restored_response = api.ForwardVPResponse(
             vp=vp_restored, pub_key=vp_response.pub_key
         )
-        valid, revealed, _ = verifier.process_request(restored_response)
+        registry = RegistryInstance()
+        valid, revealed, _ = _process_vp(verifier, registry, restored_response)
         assert valid is True
         assert revealed == {"name": "Alice", "age": "30"}
 
@@ -318,13 +352,15 @@ class TestEntityVPTampering:
         """Changing the VC issuer in the VP breaks nonce-binding."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
             always_hidden_keys=["linkSecret"],
         )
         vp_response.vp.verifiableCredential["issuer"] = "did:evil:attacker"
-        valid, revealed, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, revealed, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
         assert revealed is None
 
@@ -332,65 +368,75 @@ class TestEntityVPTampering:
         """Injecting an extra VP-level context breaks nonce-binding."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
             always_hidden_keys=["linkSecret"],
         )
         vp_response.vp.context.append("https://evil.com/ctx")
-        valid, _, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, _, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
 
     def test_tampered_vc_context(self, issued_credential):
         """Modifying the embedded VC @context breaks nonce-binding."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
             always_hidden_keys=["linkSecret"],
         )
         vp_response.vp.verifiableCredential["@context"].append("https://evil.com")
-        valid, _, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, _, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
 
     def test_tampered_vc_type(self, issued_credential):
         """Modifying the embedded VC type breaks nonce-binding."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
             always_hidden_keys=["linkSecret"],
         )
         vp_response.vp.verifiableCredential["type"].append("FakeType")
-        valid, _, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, _, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
 
     def test_tampered_vp_type(self, issued_credential):
         """Modifying the VP-level type breaks nonce-binding."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
             always_hidden_keys=["linkSecret"],
         )
         vp_response.vp.type.append("EvilPresentation")
-        valid, _, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, _, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
 
     def test_tampered_revealed_value(self, issued_credential):
         """Modifying a disclosed attribute value fails cryptographic verification."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
             always_hidden_keys=["linkSecret"],
         )
         vp_response.vp.verifiableCredential["credentialSubject"]["name"] = "Mallory"
-        valid, revealed, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, revealed, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
         assert revealed is None
 
@@ -399,6 +445,7 @@ class TestEntityVPTampering:
         because BBS+ proofs are index-sensitive."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name", "studentId"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
@@ -408,7 +455,8 @@ class TestEntityVPTampering:
         subject = vp_response.vp.verifiableCredential["credentialSubject"]
         reversed_subject = dict(reversed(list(subject.items())))
         vp_response.vp.verifiableCredential["credentialSubject"] = reversed_subject
-        valid, _, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, _, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
 
 
@@ -419,6 +467,7 @@ class TestEntityVPNonce:
         """VP built with a different nonce than the verifier's challenge fails."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name"])
         # Build VP with a rogue nonce instead of the verifier's
         rogue_nonce = os.urandom(32)
@@ -431,7 +480,8 @@ class TestEntityVPNonce:
         rogue_response = api.ForwardVPResponse(
             vp=vp, pub_key=issuer.public_key
         )
-        valid, _, _ = verifier.process_request(rogue_response)
+        registry = RegistryInstance()
+        valid, _, _ = _process_vp(verifier, registry, rogue_response)
         assert valid is False
 
     def test_replay_attack_fails(self, issued_credential):
@@ -441,19 +491,22 @@ class TestEntityVPNonce:
 
         # First session — legitimate
         verifier1 = VerifierInstance()
+        _sync_verifier(verifier1, [issuer])
         vp_request1 = verifier1.presentation_request(["name"])
         vp_response1 = holder.present_credential(
             vp_request=vp_request1, vc_name=cred_name,
             always_hidden_keys=["linkSecret"],
         )
-        valid1, _, _ = verifier1.process_request(vp_response1)
+        registry = RegistryInstance()
+        valid1, _, _ = _process_vp(verifier1, registry, vp_response1)
         assert valid1 is True
 
         # Second session — attacker replays vp_response1
         verifier2 = VerifierInstance()
+        _sync_verifier(verifier2, [issuer])
         _vp_request2 = verifier2.presentation_request(["name"])
-        # Replay the old VP response (different nonce in verifier2's state)
-        valid2, _, _ = verifier2.process_request(vp_response1)
+        registry = RegistryInstance()
+        valid2, _, _ = _process_vp(verifier2, registry, vp_response1)
         assert valid2 is False
 
 
@@ -466,6 +519,7 @@ class TestEntityVPWrongKey:
         other_issuer = IssuerInstance()
 
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer, other_issuer])
         vp_request = verifier.presentation_request(["name"])
         vp_response = holder.present_credential(
             vp_request=vp_request, vc_name=cred_name,
@@ -473,7 +527,8 @@ class TestEntityVPWrongKey:
         )
         # Swap the pub_key to a different issuer's
         vp_response.pub_key = other_issuer.public_key
-        valid, _, _ = verifier.process_request(vp_response)
+        registry = RegistryInstance()
+        valid, _, _ = _process_vp(verifier, registry, vp_response)
         assert valid is False
 
 
@@ -485,6 +540,7 @@ class TestEntityVPMissingAttributes:
         verification fails at the attribute-completeness phase."""
         holder, issuer, cred_name = issued_credential
         verifier = VerifierInstance()
+        _sync_verifier(verifier, [issuer])
         vp_request = verifier.presentation_request(["name", "studentId"])
         # Build a VP that only reveals "name" (not "studentId")
         vp = holder.build_vp(
@@ -496,7 +552,8 @@ class TestEntityVPMissingAttributes:
         partial_response = api.ForwardVPResponse(
             vp=vp, pub_key=issuer.public_key
         )
-        valid, revealed, _ = verifier.process_request(partial_response)
+        registry = RegistryInstance()
+        valid, revealed, _ = _process_vp(verifier, registry, partial_response)
         assert valid is False
         assert revealed is None
 

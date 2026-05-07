@@ -264,8 +264,6 @@ class GetIssuerDetailsRequest(Request):
         super().__init__(RequestType.GET_ISSUER_DETAILS)
         self.issuer_name = issuer_name
 
-from typing import Optional
-
 class IssuerDetailsResponse(Request):
     def __init__(self, issuer_data: Optional[IssuerPublicData]):
         super().__init__(RequestType.ISSUER_DETAILS_RESPONSE)

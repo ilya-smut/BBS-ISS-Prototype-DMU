@@ -12,6 +12,7 @@ class VerifierInstance:
             self.freshness = None
             self.attributes = None
             self.type = None
+            self.queued_response = None
         def start_vp_request(self, nonce: bytes, attributes: list[str]):
             self.freshness = nonce
             self.attributes = attributes
@@ -25,6 +26,7 @@ class VerifierInstance:
             self.attributes = None
             self.awaiting = False
             self.type = None
+            self.queued_response = None
         @property
         def available(self) -> bool:
             return not self.awaiting
@@ -47,13 +49,46 @@ class VerifierInstance:
         if self.state.available:
             raise VerifierNotInInteraction("No active interaction")
         elif request.request_type == api.RequestType.FORWARD_VP:
-            return self.verify_vp(request.vp, request.pub_key)
+            issuer_name = request.vp.verifiableCredential["issuer"]
+            details = self.get_issuer_details(issuer_name)
+            
+            if isinstance(details, api.IssuerPublicData):
+                # We have the details in cache
+                if details.public_key == request.pub_key:
+                    return self.verify_vp(request.vp, request.pub_key)
+                else:
+                    # Key mismatch - need to fetch latest from registry
+                    self.state.queued_response = request
+                    self.state.start_registry_interaction(api.RequestType.GET_ISSUER_DETAILS)
+                    return api.GetIssuerDetailsRequest(issuer_name)
+            else:
+                # details is a GetIssuerDetailsRequest
+                self.state.queued_response = request
+                return details
+
         elif request.request_type == api.RequestType.ISSUER_DETAILS_RESPONSE:
             if not self.state.registry_interaction_ready:
                 self.state.end_interaction()
                 raise VerifierStateError("Invalid verifier state for registry response", state=self.state)
+            
             if request.issuer_data:
                 self.public_data_cache.update(request.issuer_data.issuer_name, request.issuer_data)
+            
+            if self.state.queued_response:
+                queued_req = self.state.queued_response
+                self.state.queued_response = None
+                
+                # Try to resolve key again from updated cache
+                issuer_name = queued_req.vp.verifiableCredential["issuer"]
+                data = self.public_data_cache.get(issuer_name)
+                
+                if data and data.public_key == queued_req.pub_key:
+                    return self.verify_vp(queued_req.vp, queued_req.pub_key)
+                else:
+                    # Still can't resolve or key mismatch
+                    self.state.end_interaction()
+                    return (False, None, queued_req.vp)
+            
             self.state.end_interaction()
             return request.issuer_data
         elif request.request_type == api.RequestType.BULK_ISSUER_DETAILS_RESPONSE:

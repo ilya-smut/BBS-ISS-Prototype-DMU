@@ -6,6 +6,7 @@ import ursa_bbs_signatures as bbs
 
 from bbs_iss.entities.issuer import IssuerInstance
 from bbs_iss.entities.holder import HolderInstance
+from bbs_iss.entities.registry import RegistryInstance
 from bbs_iss.interfaces.credential import VerifiableCredential
 import bbs_iss.interfaces.requests_api as api
 from bbs_iss.utils.utils import gen_link_secret
@@ -296,6 +297,17 @@ class TestReissuanceFlow:
         
         from bbs_iss.entities.verifier import VerifierInstance
         verifier = VerifierInstance()
+        
+        # Sync verifier
+        registry = RegistryInstance()
+        reg_req = issuer.register_issuer()
+        reg_resp = registry.process_request(reg_req)
+        issuer.process_request(reg_resp)
+        
+        bulk_req = verifier.fetch_all_issuer_details()
+        bulk_resp = registry.process_request(bulk_req)
+        verifier.process_request(bulk_resp)
+
         vp_req = verifier.presentation_request(requested_attributes=["name"])
         vp_resp = holder.present_credential(vp_req, cred_name, always_hidden_keys=["LinkSecret"])
         

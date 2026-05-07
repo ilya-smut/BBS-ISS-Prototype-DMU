@@ -3,6 +3,7 @@ import os
 from bbs_iss.entities.issuer import IssuerInstance
 from bbs_iss.entities.holder import HolderInstance
 from bbs_iss.entities.verifier import VerifierInstance
+from bbs_iss.entities.registry import RegistryInstance
 from bbs_iss.exceptions.exceptions import VerifierNotInInteraction, VerifierStateError
 import bbs_iss.interfaces.requests_api as api
 from bbs_iss.utils.utils import gen_link_secret
@@ -32,9 +33,24 @@ def issued_credential():
 
     return holder, issuer, cred_name
 
+
+def _sync_verifier(verifier, issuers: list):
+    """Helper: registers issuers and syncs verifier cache."""
+    registry = RegistryInstance()
+    for issuer in issuers:
+        reg_req = issuer.register_issuer()
+        reg_resp = registry.process_request(reg_req)
+        issuer.process_request(reg_resp)
+    
+    bulk_req = verifier.fetch_all_issuer_details()
+    bulk_resp = registry.process_request(bulk_req)
+    verifier.process_request(bulk_resp)
+
+
 def _full_entity_flow(holder, issuer, cred_name, requested_attrs):
     """Helper: runs the VP entity flow and returns the verifier result tuple."""
     verifier = VerifierInstance()
+    _sync_verifier(verifier, [issuer])
     vp_request = verifier.presentation_request(requested_attributes=requested_attrs)
     vp_response = holder.present_credential(
         vp_request=vp_request,
@@ -59,6 +75,7 @@ class TestEntityVerifierStateGuards:
             always_hidden_keys=["linkSecret"],
         )
         response = api.ForwardVPResponse(vp=vp, pub_key=issuer.public_key)
+        _sync_verifier(verifier, [issuer])
         with pytest.raises(VerifierNotInInteraction):
             verifier.process_request(response)
 
