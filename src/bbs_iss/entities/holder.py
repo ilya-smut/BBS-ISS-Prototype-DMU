@@ -37,9 +37,9 @@ class HolderInstance:
         def add_freshness(self, nonce):
             self.freshness = nonce
 
-        def start_registry_interaction(self):
+        def start_registry_interaction(self, interaction_type: api.RequestType = api.RequestType.GET_ISSUER_DETAILS):
             self.awaiting = True
-            self.pending_registry_request = api.RequestType.GET_ISSUER_DETAILS
+            self.pending_registry_request = interaction_type
         
         def end_interaction(self):
             self.awaiting = False
@@ -65,7 +65,7 @@ class HolderInstance:
 
         @property
         def registry_interaction_ready(self) -> bool:
-            return self.awaiting and self.pending_registry_request == api.RequestType.GET_ISSUER_DETAILS
+            return self.awaiting and self.pending_registry_request in [api.RequestType.GET_ISSUER_DETAILS, api.RequestType.BULK_ISSUER_DETAILS_REQUEST]
 
     def __init__(self):
         self.state = self.State()
@@ -93,6 +93,14 @@ class HolderInstance:
                 self.public_data_cache.update(request.issuer_data.issuer_name, request.issuer_data)
             self.state.end_interaction()
             return request.issuer_data
+        elif request.request_type == api.RequestType.BULK_ISSUER_DETAILS_RESPONSE:
+            if not self.state.registry_interaction_ready:
+                self.state.end_interaction()
+                raise HolderStateError("Invalid holder state for bulk registry response", state=self.state)
+            for data in request.issuers_data:
+                self.public_data_cache.update(data.issuer_name, data)
+            self.state.end_interaction()
+            return request.issuers_data
         else:
             raise ValueError("Invalid request type")
             
@@ -104,8 +112,15 @@ class HolderInstance:
         if data:
             return data
             
-        self.state.start_registry_interaction()
+        self.state.start_registry_interaction(api.RequestType.GET_ISSUER_DETAILS)
         return api.GetIssuerDetailsRequest(issuer_name)
+            
+    def fetch_all_issuer_details(self) -> api.BulkGetIssuerDetailsRequest:
+        """
+        Generates a bulk registry request to fetch all registered issuers.
+        """
+        self.state.start_registry_interaction(api.RequestType.BULK_ISSUER_DETAILS_REQUEST)
+        return api.BulkGetIssuerDetailsRequest()
             
     def issuance_request(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str):
         self.state.start_issuance_interaction(issuer_pub_key, attributes, cred_name, api.RequestType.ISSUANCE)

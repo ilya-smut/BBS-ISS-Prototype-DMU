@@ -13,6 +13,7 @@ A working proof-of-concept Python prototype for a **Privacy-Preserving Verifiabl
     - [IssuerInstance](#issuerinstance)
     - [HolderInstance](#holderinstance)
     - [VerifierInstance](#verifierinstance)
+    - [RegistryInstance](#registryinstance)
   - [Interfaces](#interfaces)
     - [requests\_api](#requests_api)
     - [credential](#credential)
@@ -71,7 +72,8 @@ BBS-ISS-Prototype-DMU/
 │       │   ├── __init__.py
 │       │   ├── issuer.py           # IssuerInstance class
 │       │   ├── holder.py           # HolderInstance class
-│       │   └── verifier.py         # VerifierInstance class
+│       │   ├── verifier.py         # VerifierInstance class
+│       │   └── registry.py         # RegistryInstance class
 │       ├── interfaces/             # Shared data types and protocol messages
 │       │   ├── __init__.py
 │       │   ├── requests_api.py     # Request/response classes and data models
@@ -79,13 +81,17 @@ BBS-ISS-Prototype-DMU/
 │       ├── exceptions/             # Custom exception hierarchy
 │       │   └── exceptions.py       # All project exceptions
 │       └── utils/                  # Utility functions
-│           └── utils.py            # Nonce generation, link secret generation
-├── testing/
-│   ├── unit/                       # Pytest comprehensive unit test suite
-│   │   ├── entities/               # Participant state and interaction tests
-│   │   ├── flows/                  # End-to-end multi-round protocol flows
-│   │   └── models/                 # Cryptographic payload and validation testing
-│   ├── vp-test.py                  # End-to-end issuance and presentation test script
+│           ├── utils.py            # Nonce generation, link secret generation
+│           └── cache.py            # PublicDataCache manager
+    ├── testing/
+    │   ├── unit/                   # Pytest comprehensive unit test suite
+    │   │   ├── entities/           # Participant state and interaction tests (includes Registry)
+    │   │   ├── flows/              # End-to-end multi-round protocol flows
+    │   │   └── models/             # Cryptographic payload, validation, and cache testing
+    ├── vp-test.py                  # End-to-end issuance and presentation test script
+    ├── examples/                   # Practical usage demonstrations
+    │   ├── full_cycle.py           # End-to-end flow with issuance and presentation
+    │   └── registry.py             # Demonstration of registry lookups and caching
 │   ├── issuance-test.py            # Issuance test script
 │   ├── playground.ipynb            # Interactive end-to-end issuance notebook
 │   └── test-notebook.ipynb         # Test notebook
@@ -113,10 +119,34 @@ Holder                                        Issuer
   │                                              ├── compute blind signature
   │<─── 4. ForwardVCResponse (VC w/ blind sig) ──│
   │                                              │
-  ├── unblind signature                          │
   ├── verify signature                           │
   └── store credential                           │
 ```
+
+---
+
+### Registry Protocol (Authority Synchronization)
+
+The Registry acts as an authoritative source for Issuer public data. Entities maintain a local `PublicDataCache` and synchronize with the Registry using a "Cache-First" strategy.
+
+```
+Entity (Holder/Verifier)                         Registry
+  │                                              │
+  ├── check local cache (miss)                   │
+  │                                              │
+  │──── 1. GetIssuerDetailsRequest ─────────────>│
+  │                                              ├── lookup issuer metadata
+  │<─── 2. IssuerDetailsResponse (metadata) ─────│
+  │                                              │
+  ├── update local cache                         │
+  └── return data                                │
+```
+
+**Bulk Synchronization:** To facilitate efficient bootstrapping, entities can also perform a `BulkGetIssuerDetailsRequest`, which triggers the Registry to return a complete list of all registered issuers in a single interaction.
+
+**Issuer Registration:** Issuers proactively announce their metadata (Public Key, Epoch configuration, Revocation bitstring) to the Registry via `RegisterIssuerDetailsRequest`.
+
+---
 
 **Step 1 — Issuance Request:** The Holder initiates the protocol by sending a `VCIssuanceRequest`. Internally, the Holder stores the public key, attributes, and credential name in its local state.
 
@@ -237,7 +267,9 @@ Tracks whether the Issuer is currently processing a request.
 | `set_re_issuance_window_days(days)` | `int` | — | Sets the allowed time window before expiration when re-issuance is permitted. |
 | `set_issuer_parameters(params)` | `dict` | — | Sets arbitrary parameters like the issuer's name. |
 | `get_configuration()` | — | `str` | Returns a formatted string detailing the issuer's current configuration. |
-| `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse` | Main dispatch method. Routes `ISSUANCE` and `RE_ISSUANCE` requests to `freshness_response()`, `BLIND_SIGN` requests to `issue_vc_blind()`, and `FORWARD_VP_AND_CMT` to `re_issue_vc()`. Raises `IssuerNotAvailable` if busy. |
+| `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse \| bool` | Main dispatch method. Routes `ISSUANCE` and `RE_ISSUANCE` requests to `freshness_response()`, `BLIND_SIGN` requests to `issue_vc_blind()`, `FORWARD_VP_AND_CMT` to `re_issue_vc()`, and registry responses to internal state handlers. Returns `True` if a registry interaction succeeded. |
+| `register_issuer(initial_bitstring)` | `str` | `RegisterIssuerDetailsRequest` | Initiates the registration of the issuer's public key and configuration with the Registry. |
+| `update_issuer_details(new_bitstring)` | `str` | `UpdateIssuerDetailsRequest` | Updates the registered metadata (e.g., rotating the revocation bitstring). |
 | `freshness_response(request_type)` | `RequestType` | `FreshnessUpdateResponse` | Generates a 32-byte nonce via `utils.gen_nonce()`, transitions to busy state, returns nonce wrapped in a response. |
 | `blind_sign(request)` | `BlindSignRequest` | `bytes` | Verifies the blinded commitment proof, then computes a blind BBS+ signature. Raises `ProofValidityError` if the commitment proof fails. |
 | `issue_vc_blind(request)` | `BlindSignRequest` | `ForwardVCResponse` | Pre-computes a `VerifiableCredential` from the attribute metadata, appends validity and revocation fields, calculates the `metaHash`, updates it in both the VC and the signing request, calls `blind_sign()`, attaches the signature, and wraps the VC in a `ForwardVCResponse`. |
@@ -280,8 +312,8 @@ Tracks active interaction state including the Issuer's public key, attribute set
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
-| `__init__()` | — | — | Initializes empty state and a `credentials` dictionary mapping names to `(VerifiableCredential, PublicKeyBLS)` tuples. |
-| `process_request(request)` | `Request` | `BlindSignRequest \| ForwardVpAndCmtRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses to `blind_sign_request()` or `forward_vp_and_cmt_request()` depending on original request. Routes `FORWARD_VC` responses to `unblind_verify_save_vc()`. Raises `HolderNotInInteraction` if no active interaction. |
+| `__init__()` | — | — | Initializes empty state, a `credentials` dictionary, and a `public_data_cache`. |
+| `process_request(request)` | `Request` | `BlindSignRequest \| ForwardVpAndCmtRequest \| IssuerPublicData \| list[IssuerPublicData] \| bool` | Dispatch method. Routes `FRESHNESS` responses to requests, `FORWARD_VC` to storage logic, and `ISSUER_DETAILS` responses to the `PublicDataCache`. |
 | `issuance_request(issuer_pub_key, attributes, cred_name)` | `PublicKeyBLS`, `IssuanceAttributes`, `str` | `VCIssuanceRequest` | Initializes the Holder's interaction state and returns an issuance request. |
 | `re_issuance_request(vc_name, always_hidden_keys=None)` | `str`, `list[str]` | `Request` | Prepares attributes from the existing credential for re-issuance, retaining those specified in `always_hidden_keys` as blinded. |
 | `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Checks `blind_sign_request_ready`, stores the nonce, calls `build_commitment_append_meta()`, and constructs a `BlindSignRequest`. Raises `HolderStateError` if preconditions are not met. |
@@ -290,6 +322,8 @@ Tracks active interaction state including the Issuer's public key, attribute set
 | `unblind_verify_save_vc(vc)` | `VerifiableCredential` | `bool` | Checks `unblind_ready`, unblinds the signature, fills in blinded attribute values in the VC, verifies the signature via `verify_vc()`, stores the credential alongside the issuer public key, clears interaction state, and returns the verification result. Raises `HolderStateError` if preconditions are not met, or `ProofValidityError` if signature verification fails. |
 | `build_vp(revealed_keys, nonce, issuer_pub_key=None, vc=None, vc_name=None, always_hidden_keys=None, commitment=None)` | `list[str]`, `bytes`, kwargs | `VerifiablePresentation` | Core ZKP construction logic. Resolves the credential, builds the VP envelope via `from_verifiable_credential()`, tags ProofMessages as `Revealed` or `Hidden`, derives the bound nonce (optionally hashing in a new `commitment`), and runs `bbs.create_proof()`. |
 | `present_credential(vp_request, vc_name, always_hidden_keys=None)` | `VPRequest`, `str`, optional `list[str]` | `ForwardVPResponse` | High-level API for responding to a verifier. Checks attribute availability, ensures no conflict with `always_hidden_keys`, delegates to `build_vp()`, and returns the `ForwardVPResponse`. |
+| `get_issuer_details(issuer_name)` | `str` | `IssuerPublicData \| GetIssuerDetailsRequest` | Cache-first lookup. Returns metadata immediately on hit, or triggers a registry lookup on miss. |
+| `fetch_all_issuer_details()` | — | `BulkGetIssuerDetailsRequest` | Triggers a full synchronization of the local cache with the registry. |
 
 ---
 
@@ -320,10 +354,24 @@ Tracks whether the Verifier is currently waiting for a presentation.
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
-| `__init__()` | — | — | Initializes empty state. |
+| `__init__()` | — | — | Initializes empty state and a `public_data_cache`. |
 | `presentation_request(requested_attributes)` | `list[str]` | `VPRequest` | Generates a 32-byte challenge nonce via `gen_nonce()`, saves it to state along with the required attributes, and returns a `VPRequest`. Raises `VerifierStateError` if already busy. |
-| `process_request(request)` | `Request` | `tuple` | Main dispatch method. Routes `FORWARD_VP` responses to `verify_vp()`. Raises `VerifierNotInInteraction` if no request is pending. |
+| `process_request(request)` | `Request` | `tuple \| IssuerPublicData \| list[IssuerPublicData]` | Main dispatch method. Routes `FORWARD_VP` responses to `verify_vp()` and registry responses to the `PublicDataCache`. |
 | `verify_vp(vp, pub_key)` | `VerifiablePresentation`, `PublicKeyBLS` | `tuple[bool, dict \| None, VP]` | Two-phase verification. Phase 1 checks Attribute Completeness against the original `requested_attributes`. Phase 2 reconstructs the bound nonce and runs BBS+ `verify_proof()`. Returns `(is_valid, revealed_attributes, vp_object)`. |
+| `get_issuer_details(issuer_name)` | `str` | `IssuerPublicData \| GetIssuerDetailsRequest` | Triggers authoritative metadata lookup. |
+| `fetch_all_issuer_details()` | — | `BulkGetIssuerDetailsRequest` | Triggers a full registry sync. |
+
+---
+
+#### `RegistryInstance`
+
+**Module:** `bbs_iss.entities.registry`
+
+A centralized authority that manages `IssuerPublicData` records.
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `process_request(request)` | `Request` | `IssuerDetailsResponse \| BulkIssuerDetailsResponse` | Validates and stores incoming issuer data, or serves requested metadata. |
 
 ---
 
@@ -412,6 +460,12 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `BlindSignRequest` | `BLIND_SIGN` | `revealed_attributes`, `commitment`, `total_messages`, `proof`, `messages_with_blinded_indices` | Constructed directly from an `IssuanceAttributes` instance. Carries all data the Issuer needs to verify the commitment and compute a blind signature. |
 | `ForwardVCResponse` | `FORWARD_VC` | `vc: VerifiableCredential` | Carries the issued credential back to the Holder. |
 | `ForwardVpAndCmtRequest` | `FORWARD_VP_AND_CMT` | `vp`, `commitment`, `proof`, `revealed_attributes` | Used during re-issuance to present an existing credential alongside a blinded commitment for the new one. |
+| `RegisterIssuerDetailsRequest`| `REGISTER_ISSUER_DETAILS` | `issuer_name`, `issuer_data` | Used by Issuers to announce their metadata to the Registry. |
+| `UpdateIssuerDetailsRequest`  | `UPDATE_ISSUER_DETAILS` | `issuer_name`, `issuer_data` | Used by Issuers to update their registered metadata. |
+| `GetIssuerDetailsRequest`     | `GET_ISSUER_DETAILS` | `issuer_name` | Dispatched by Entities to lookup an Issuer's metadata. |
+| `IssuerDetailsResponse`       | `ISSUER_DETAILS_RESPONSE` | `issuer_data` | Carries a single issuer's metadata from the Registry. |
+| `BulkGetIssuerDetailsRequest` | `BULK_ISSUER_DETAILS_REQUEST` | *(none)* | Dispatched by Entities to fetch all registered issuers. |
+| `BulkIssuerDetailsResponse`   | `BULK_ISSUER_DETAILS_RESPONSE` | `issuers_data: list` | Carries the complete registry state. |
 | `VPRequest` | `VP_REQUEST` | `requested_attributes: list[str]`, `nonce: bytes` | Dispatched by Verifier to request specific attributes and bind the proof to a challenge. |
 | `ForwardVPResponse` | `FORWARD_VP` | `vp: VerifiablePresentation`, `pub_key: PublicKeyBLS` | Carries the ZKP and revealed attributes back to the Verifier. |
 
@@ -430,6 +484,12 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `VRF_ACKNOWLEDGE` | 9 | — |
 | `ERROR` | 10 | — |
 | `FORWARD_VP_AND_CMT` | 11 | ✓ |
+| `REGISTER_ISSUER_DETAILS` | 12 | ✓ |
+| `UPDATE_ISSUER_DETAILS` | 13 | ✓ |
+| `GET_ISSUER_DETAILS` | 14 | ✓ |
+| `ISSUER_DETAILS_RESPONSE` | 15 | ✓ |
+| `BULK_ISSUER_DETAILS_REQUEST` | 16 | ✓ |
+| `BULK_ISSUER_DETAILS_RESPONSE` | 17 | ✓ |
 
 ---
 
@@ -521,6 +581,22 @@ All exceptions use the pattern `def __init__(self, message="<default>")` unless 
 
 ---
 
+#### `PublicDataCache`
+
+**Module:** `bbs_iss.utils.cache`
+
+An in-memory manager for `IssuerPublicData` records, used by Holders and Verifiers to avoid redundant registry lookups.
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `update(issuer_name, data)` | `str`, `IssuerPublicData` | — | Upserts a record into the cache with a current UTC timestamp. |
+| `get(issuer_name)` | `str` | `IssuerPublicData \| None` | Returns the metadata if present, otherwise `None`. |
+| `get_entry(issuer_name)` | `str` | `CacheEntry \| None` | Returns the full `CacheEntry` (including metadata and `obtained_at` timestamp). |
+| `clear()` | — | — | Purges all cached records. |
+| `get_cache_info()` | — | `str` | Returns a beautifully formatted string summary of all cached issuers. |
+
+---
+
 ## Usage Example
 
 ## Usage Example
@@ -531,82 +607,70 @@ The following code demonstrates a full round-trip from blind issuance to selecti
 from bbs_iss.entities.issuer import IssuerInstance
 from bbs_iss.entities.holder import HolderInstance
 from bbs_iss.entities.verifier import VerifierInstance
+from bbs_iss.entities.registry import RegistryInstance
 import bbs_iss.interfaces.requests_api as api
 import bbs_iss.utils.utils as utils
 
-# ─── 1. Setup & Key Generation ───────────────────────────────────────
+# ─── 1. Setup & Authority Registration ──────────────────────────────
 issuer = IssuerInstance()
+issuer.issuer_parameters = {"issuer": "University-Authority"}
+registry = RegistryInstance()
 holder = HolderInstance()
 verifier = VerifierInstance()
 
-# ─── 2. Define Attributes for Issuance ───────────────────────────────
+# Issuer announces metadata to the Registry
+reg_req = issuer.register_issuer()
+reg_resp = registry.process_request(reg_req)
+issuer.process_request(reg_resp)
+
+# ─── 2. Define Attributes & ISSUANCE ────────────────────────────────
 attributes = api.IssuanceAttributes()
-attributes.append("secret", utils.gen_nonce(), api.AttributeType.HIDDEN)
-attributes.append("not_secret", "very not secret", api.AttributeType.REVEALED)
-attributes.append("name", "Alice", api.AttributeType.REVEALED)
-attributes.append("studentId", "S-001", api.AttributeType.REVEALED)
+attributes.append("secret", utils.gen_link_secret(), api.AttributeType.HIDDEN)
+attributes.append("degree", "Bachelor of Cryptography", api.AttributeType.REVEALED)
 
-# ─── 3. ISSUANCE FLOW ────────────────────────────────────────────────
 # Holder initiates issuance
-init_request = holder.issuance_request(
-    issuer_pub_key=issuer.public_key, 
-    attributes=attributes, 
-    cred_name="test-cred"
-)
-
-# Issuer provides freshness challenge
+init_request = holder.issuance_request(issuer.public_key, attributes, "degree-cred")
 freshness_response = issuer.process_request(init_request)
-
-# Holder builds blinded commitment and proof
 blind_sign_request = holder.process_request(freshness_response)
-
-# Issuer verifies commitment and blind-signs the credential
 forward_vc_response = issuer.process_request(blind_sign_request)
 
-# Holder unblinds signature and saves valid credential
+# Holder unblinds and saves credential
 is_vc_valid = holder.process_request(forward_vc_response)
 print(f"Credential issuance success: {is_vc_valid}")
 
-# ─── 4. PRESENTATION FLOW ────────────────────────────────────────────
-# Verifier requests specific attributes with a challenge nonce
-vp_request = verifier.presentation_request(
-    requested_attributes=["studentId", "name"]
-)
+# ─── 3. REGISTRY LOOKUP & PRESENTATION ──────────────────────────────
+# Verifier needs the issuer's public key but doesn't have it in cache
+# It performs an authoritative lookup via the Registry
+issuer_name = "University-Authority"
+lookup_req = verifier.get_issuer_details(issuer_name)
 
-# Holder builds zero-knowledge proof of requested attributes
-# Ensures "secret" is never disclosed even if requested
-vp_response = holder.present_credential(
-    vp_request=vp_request, 
-    vc_name="test-cred", 
-    always_hidden_keys=["secret"]
-)
+if isinstance(lookup_req, api.GetIssuerDetailsRequest):
+    # Cache miss - synchronize with registry
+    lookup_resp = registry.process_request(lookup_req)
+    issuer_metadata = verifier.process_request(lookup_resp)
+else:
+    # Cache hit
+    issuer_metadata = lookup_req
 
-# Verifier confirms completeness and validates ZKP against bound nonce
-is_vp_valid, revealed_attrs, vp_obj = verifier.process_request(vp_response)
+# Now the verifier has the public key in its local cache
+print(verifier.public_data_cache.get_cache_info())
 
-print(f"Presentation validation success: {is_vp_valid}")
-print(f"Revealed Attributes: {revealed_attrs}")
-# Output: {'name': 'Alice', 'studentId': 'S-001'}
+# Verifier requests proof
+vp_request = verifier.presentation_request(requested_attributes=["degree"])
+vp_response = holder.present_credential(vp_request, "degree-cred", always_hidden_keys=["secret"])
 
-# ─── 5. RE-ISSUANCE FLOW ─────────────────────────────────────────────
-# Holder initiates re-issuance for the existing credential
-re_init_req = holder.re_issuance_request(
-    vc_name="test-cred",
-    always_hidden_keys=["secret"]
-)
+# Verification against cached authoritative key
+is_vp_valid, revealed_attrs, _ = verifier.process_request(vp_response)
+print(f"ZKP Validation: {is_vp_valid} | Data: {revealed_attrs}")
 
-# Issuer provides freshness challenge
+# ─── 4. RE-ISSUANCE ──────────────────────────────────────────────────
+# Holder initiated renewal
+re_init_req = holder.re_issuance_request("degree-cred", always_hidden_keys=["secret"])
 re_freshness = issuer.process_request(re_init_req)
-
-# Holder builds VP of old credential and commitment for new credential
 vp_and_cmt_req = holder.process_request(re_freshness)
-
-# Issuer validates VP, commitment, checks window, and issues new VC
 re_forward_vc = issuer.process_request(vp_and_cmt_req)
 
-# Holder unblinds and saves the renewed credential
 is_reissued_valid = holder.process_request(re_forward_vc)
-
 print(f"Credential re-issuance success: {is_reissued_valid}")
 ```
 

@@ -190,6 +190,8 @@ class RequestType(Enum):
     UPDATE_ISSUER_DETAILS = 13
     GET_ISSUER_DETAILS = 14
     ISSUER_DETAILS_RESPONSE = 15
+    BULK_ISSUER_DETAILS_REQUEST = 16
+    BULK_ISSUER_DETAILS_RESPONSE = 17
 
 
 class Request:
@@ -268,4 +270,15 @@ class IssuerDetailsResponse(Request):
     def __init__(self, issuer_data: Optional[IssuerPublicData]):
         super().__init__(RequestType.ISSUER_DETAILS_RESPONSE)
         self.issuer_data = issuer_data
+
+
+class BulkGetIssuerDetailsRequest(Request):
+    def __init__(self):
+        super().__init__(RequestType.BULK_ISSUER_DETAILS_REQUEST)
+
+
+class BulkIssuerDetailsResponse(Request):
+    def __init__(self, issuers_data: list[IssuerPublicData]):
+        super().__init__(RequestType.BULK_ISSUER_DETAILS_RESPONSE)
+        self.issuers_data = issuers_data
 

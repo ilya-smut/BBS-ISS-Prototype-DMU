@@ -20,13 +20,17 @@ Tests in this category validate the core data structures, cryptographic hashing,
     *   `test_signature_invalid_on_subject_change`
     *   *These tests confirm that modifying any part of the credential envelope (revealed or hidden) invalidates the BBS+ signature.*
 
-### `test_verifiable_presentation.py` — ZKP Envelope & Nonce Binding
-*   **`TestVPSerialisation`**: Validates hex-encoding of ZKP proofs and full dictionary/JSON roundtrips.
-*   **`TestNormalizeMetaFields`**: 
-    *   Ensures deterministic hashing of the VP metadata.
-    *   Verifies domain separation (the `vc.` prefix) to prevent cross-level collisions between VP and VC fields.
-    *   Confirms that the hash is insensitive to variable values (ZKP proof bytes, revealed attribute values) but sensitive to all structural metadata.
 *   **`TestBuildBoundNonce`**: Validates the construction of the *effective nonce* (binding the verifier's challenge to the metadata). Verifies that different challenges or different metadata result in unique bound nonces.
+
+### `test_requests_api.py` — Data Model Serialization
+*   **`test_issuer_public_data_serialization`**: Verifies that `IssuerPublicData` maintains full integrity across JSON and dictionary round-trips.
+*   **`test_cache_entry_serialization`**: Ensures that `CacheEntry` objects (including timestamps) are correctly serialized.
+*   **`test_public_key_bls_equality`**: Confirms that BLS public key objects can be compared reliably.
+
+### `test_cache.py` — Public Data Cache Management
+*   **`test_cache_update_and_get`**: Validates cache hit/miss logic and automatic UTC timestamping.
+*   **`test_cache_clear`**: Ensures the cache can be completely purged.
+*   **`test_cache_info_formatting`**: Verifies that `get_cache_info()` produces a correctly formatted summary string for both empty and populated states.
 
 ---
 
@@ -52,10 +56,13 @@ Tests focused on the internal state machines and behavioral guardrails of the pr
     *   `test_epoch_boundary_late_issuance`: Confirms that outdated credentials re-sync to the currently active epoch.
     *   `test_epoch_boundary_late_issuance_inside_window`: Proves that re-issuing an outdated credential near an epoch boundary bumps to the *next* epoch, preventing immediate expiration.
 
-### `test_verifier.py` — Verifier Session Management
-*   **`test_process_request_without_challenge_raises`**: Rejects incoming VPs if no challenge nonce was issued.
-*   **`test_double_presentation_request_raises`**: Prevents the Verifier from starting multiple concurrent sessions.
 *   **`test_verifier_resets_after_verification`**: Ensures the Verifier returns to an idle state after a successful interaction.
+
+### `test_registry.py` — Registry Dispatch & Data Persistence
+*   **`test_registry_registration_and_get`**: Verifies the core registration and retrieval transactional logic.
+*   **`test_registry_registration_conflict`**: Enforces issuer name uniqueness (idempotency).
+*   **`test_registry_update`**: Validates that existing issuer metadata can be securely updated.
+*   **`test_registry_bulk_get`**: Confirms that the bulk request returns the complete set of registered issuers.
 
 ---
 
@@ -75,9 +82,10 @@ End-to-end integration tests that exercise the multi-step protocol sequences and
     *   `test_replay_attack_fails`: Ensures a VP from a past session cannot be reused against a new verifier challenge.
 *   **Entity API Tests**: Exercises the high-level `VerifierInstance` and `HolderInstance` interaction methods.
 
-### `test_reissuance.py` — Forward VP with Commitment Protocol
-*   **`test_stress_reissuance`**: Runs 100 sequential reissuance rounds on a single credential.
-*   **`test_replay_different_commitment`**: **Critical Security Test.** Prevents an attacker from substituting a new commitment into a captured VP (Substitution Attack protection).
-*   **`test_attribute_modification`**: Ensures the Issuer verifies that the re-issued attributes match the original ones revealed in the VP.
-*   **`test_reissuance_window_boundary`**: Validates the `validUntil` expiration logic and the re-issuance window enforcement using negative offset mocking.
 *   **`test_reissued_credential_integrity`**: Confirms that instantaneous re-issuance maintains the exact same epoch boundary and `metaHash`.
+
+### `test_registry_protocol.py` — Cross-Entity Synchronization
+*   **`test_issuer_registration_flow`**: Validates the full Issuer ↔ Registry handshake for new registrations.
+*   **`test_holder_lazy_lookup_flow`**: Proves the "Cache-First, Registry-Second" behavior of the Holder lookup system.
+*   **`test_verifier_bulk_sync_flow`**: Verifies that Verifiers can perform a full-registry synchronization in a single interaction.
+*   **State Guardrail Tests**: Rejects unsolicited or out-of-order registry responses to prevent session hijacking or state corruption.

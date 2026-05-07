@@ -12,6 +12,8 @@ class RegistryInstance:
             return self._handle_update(request)
         elif request.request_type == api.RequestType.GET_ISSUER_DETAILS:
             return self._handle_get(request)
+        elif request.request_type == api.RequestType.BULK_ISSUER_DETAILS_REQUEST:
+            return self._handle_bulk_get(request)
         else:
             raise ValueError(f"Registry cannot process request type: {request.request_type}")
 
@@ -43,3 +45,6 @@ class RegistryInstance:
             
         # Query succeeds, return existing data
         return api.IssuerDetailsResponse(issuer_data=self._store[name])
+
+    def _handle_bulk_get(self, request: api.BulkGetIssuerDetailsRequest) -> api.BulkIssuerDetailsResponse:
+        return api.BulkIssuerDetailsResponse(issuers_data=list(self._store.values()))
