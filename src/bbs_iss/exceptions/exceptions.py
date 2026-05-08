@@ -71,3 +71,12 @@ class IssuerStateError(Exception):
         self.message = message
         super().__init__(self.message)
 
+class UnregisteredIssuerError(Exception):
+    def __init__(self, message="Issuer not found in registry"):
+        self.message = message
+        super().__init__(self.message)
+
+class IssuerNotFoundInCacheError(Exception):
+    def __init__(self, message="Issuer not found in local cache"):
+        self.message = message
+        super().__init__(self.message)

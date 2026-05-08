@@ -30,8 +30,12 @@ def issued_credential_and_entities():
     cred_name = "test-cred"
     
     # Issuance flow
+    issuer_name = "Mock-Issuer"
+    data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+    holder.public_data_cache.update(issuer_name, data)
+    
     init_req = holder.issuance_request(
-        issuer_pub_key=issuer.public_key,
+        issuer_name=issuer_name,
         attributes=attributes,
         cred_name=cred_name
     )
@@ -80,7 +84,10 @@ class TestReissuanceFlow:
             attrs.append("LinkSecret", gen_link_secret(), api.AttributeType.HIDDEN)
             cred_name = f"cred{i}"
             
-            init = holder.issuance_request(issuer.public_key, attrs, cred_name)
+            issuer_name = "Mock-Issuer"
+            data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+            holder.public_data_cache.update(issuer_name, data)
+            init = holder.issuance_request(issuer_name, attrs, cred_name)
             freshness = issuer.process_request(init)
             blind_req = holder.process_request(freshness)
             forward_vc = issuer.process_request(blind_req)

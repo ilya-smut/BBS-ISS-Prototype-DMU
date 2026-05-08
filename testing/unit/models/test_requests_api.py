@@ -49,3 +49,23 @@ def test_cache_entry_serialization():
     assert entry2.issuer_data.issuer_name == "Iss"
     assert entry2.obtained_at == "2026-05-07T00:00:00Z"
     assert entry2.issuer_data.public_key == pk
+
+def test_issuer_public_data_revocation_check():
+    pk = api.PublicKeyBLS(b"key")
+    # "C0" in hex is 11000000 in binary
+    data = api.IssuerPublicData(
+        issuer_name="Test-Issuer",
+        public_key=pk,
+        revocation_bitstring="C0",
+        valid_until_weeks=1,
+        validity_window_days=1
+    )
+    
+    assert data.check_revocation_status(0) is True  # First bit of 'C' (1)
+    assert data.check_revocation_status(1) is True  # Second bit of 'C' (1)
+    assert data.check_revocation_status(2) is False # Third bit (0)
+    assert data.check_revocation_status(7) is False # Last bit of first byte (0)
+    
+    # Out of bounds
+    assert data.check_revocation_status(-1) is False
+    assert data.check_revocation_status(8) is False # Start of second byte (doesn't exist)

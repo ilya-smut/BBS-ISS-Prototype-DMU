@@ -1,7 +1,10 @@
 import bbs_iss
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
-from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, HolderNotInInteraction, HolderStateError, ProofValidityError
+from bbs_iss.exceptions.exceptions import (
+    IssuerNotAvailable, FreshnessValueError, HolderNotInInteraction, 
+    HolderStateError, ProofValidityError, UnregisteredIssuerError
+)
 from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresentation
 from bbs_iss.utils.cache import PublicDataCache
 
@@ -18,6 +21,7 @@ class HolderInstance:
             self.original_request = original_request
             self.always_hidden_keys = always_hidden_keys
             self.pending_registry_request = None
+            self.pending_issuer_name = None
         
         def start_issuance_interaction(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str, original_request: api.RequestType):
             self.awaiting = True
@@ -50,6 +54,7 @@ class HolderInstance:
             self.original_request = None
             self.always_hidden_keys = None
             self.pending_registry_request = None
+            self.pending_issuer_name = None
 
         @property
         def blind_sign_request_ready(self) -> bool:
@@ -89,8 +94,28 @@ class HolderInstance:
             if not self.state.registry_interaction_ready:
                 self.state.end_interaction()
                 raise HolderStateError("Invalid holder state for registry response", state=self.state)
+            
             if request.issuer_data:
                 self.public_data_cache.update(request.issuer_data.issuer_name, request.issuer_data)
+            
+            if self.state.pending_issuer_name:
+                # Try to resolve again from updated cache
+                issuer_name = self.state.pending_issuer_name
+                self.state.pending_issuer_name = None # Clear it now
+                
+                details = self.public_data_cache.get(issuer_name)
+                if details:
+                    # Successful resolution - resume flow
+                    self.state.issuer_pub_key = details.public_key
+                    self.state.pending_registry_request = None
+                    if self.state.original_request == api.RequestType.ISSUANCE:
+                        return api.VCIssuanceRequest()
+                    # Re-issuance is not currently supported via proactive resolution
+                
+                # If we are here, resolution failed or was not for issuance
+                self.state.end_interaction()
+                raise UnregisteredIssuerError(f"Issuer '{issuer_name}' not found in registry")
+
             self.state.end_interaction()
             return request.issuer_data
         elif request.request_type == api.RequestType.BULK_ISSUER_DETAILS_RESPONSE:
@@ -122,10 +147,20 @@ class HolderInstance:
         self.state.start_registry_interaction(api.RequestType.BULK_ISSUER_DETAILS_REQUEST)
         return api.BulkGetIssuerDetailsRequest()
             
-    def issuance_request(self, issuer_pub_key: bytes, attributes: api.IssuanceAttributes, cred_name: str):
-        self.state.start_issuance_interaction(issuer_pub_key, attributes, cred_name, api.RequestType.ISSUANCE)
-        request = api.VCIssuanceRequest()
-        return request
+    def issuance_request(self, issuer_name: str, attributes: api.IssuanceAttributes, cred_name: str):
+        details = self.get_issuer_details(issuer_name)
+        
+        if isinstance(details, api.IssuerPublicData):
+            # Cache hit
+            self.state.start_issuance_interaction(details.public_key, attributes, cred_name, api.RequestType.ISSUANCE)
+            return api.VCIssuanceRequest()
+        else:
+            # Cache miss - details is a GetIssuerDetailsRequest
+            self.state.pending_issuer_name = issuer_name
+            self.state.attributes = attributes
+            self.state.cred_name = cred_name
+            self.state.original_request = api.RequestType.ISSUANCE
+            return details
 
     def re_issuance_request(self, vc_name: str, always_hidden_keys: list[str] = None):
         if vc_name not in self.credentials:

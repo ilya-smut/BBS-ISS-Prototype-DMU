@@ -46,3 +46,21 @@ def test_cache_info_formatting():
     assert "Obtained At" in info
     assert "Public Key" in info
     assert "Revocation" in info
+
+def test_cache_check_bit_index():
+    from bbs_iss.exceptions.exceptions import IssuerNotFoundInCacheError
+    cache = PublicDataCache()
+    pk = api.PublicKeyBLS(b"key")
+    # "C0" = 11000000
+    data = api.IssuerPublicData("Issuer1", pk, "C0", 7, 7)
+    cache.update("Issuer1", data)
+    
+    # Valid checks
+    assert cache.check_bit_index("Issuer1", 0) is True
+    assert cache.check_bit_index("Issuer1", 1) is True
+    assert cache.check_bit_index("Issuer1", 2) is False
+    
+    # Missing issuer check
+    with pytest.raises(IssuerNotFoundInCacheError) as excinfo:
+        cache.check_bit_index("UnknownIssuer", 0)
+    assert "UnknownIssuer" in str(excinfo.value)

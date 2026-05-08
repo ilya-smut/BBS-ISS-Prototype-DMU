@@ -48,3 +48,28 @@ class RegistryInstance:
 
     def _handle_bulk_get(self, request: api.BulkGetIssuerDetailsRequest) -> api.BulkIssuerDetailsResponse:
         return api.BulkIssuerDetailsResponse(issuers_data=list(self._store.values()))
+
+    def get_status_string(self) -> str:
+        """
+        Returns a nicely formatted summary of all data stored in the registry.
+        """
+        if not self._store:
+            return "\n[Registry] Registry is currently empty."
+
+        lines = ["\n" + "="*50]
+        lines.append(f"{'REGISTRY CONTENTS':^50}")
+        lines.append("="*50)
+        for name, data in self._store.items():
+            pk_hex = data.public_key.key.hex()
+            pk_short = f"{pk_hex[:10]}...{pk_hex[-10:]}"
+            
+            lines.append(f"Issuer Name:    {name}")
+            lines.append(f"Public Key:     {pk_short}")
+            lines.append(f"Revocation:     {len(data.revocation_bitstring)} bits")
+            lines.append(f"Epoch Size:     {data.validity_window_days} days")
+            lines.append(f"Valid For:      {data.valid_until_weeks} weeks")
+            lines.append("-" * 50)
+        lines.append(f"{'END OF REGISTRY':^50}")
+        lines.append("="*50 + "\n")
+        
+        return "\n".join(lines)

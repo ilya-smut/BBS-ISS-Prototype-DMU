@@ -87,22 +87,30 @@ class IssuerInstance:
             
         current_epoch_starts = (current_active_boundary - epoch).isoformat(timespec='seconds').replace('+00:00', 'Z')
         current_epoch_ends = current_active_boundary.isoformat(timespec='seconds').replace('+00:00', 'Z')
+
+        pk_hex = self.public_key.key.hex()
+        pk_short = f"{pk_hex[:10]}...{pk_hex[-10:]}"
         
-        config = [
-            "--- Issuer Configuration ---",
-            f"Parameters: {current_params}",
-            f"Public Key (hex): {self.public_key.key.hex()}",
-            f"Baseline Date: {current_baseline}",
-            f"Epoch Size (days): {current_epoch_size}",
-            f"Re-issuance Window (days): {current_window}",
-            f"Current Epoch: {current_epoch_starts} to {current_epoch_ends}",
-            "----------------------------"
-        ]
+        lines = ["\n" + "="*50]
+        lines.append(f"{'ISSUER CONFIGURATION':^50}")
+        lines.append("="*50)
+        lines.append(f"Issuer Name:    {current_params.get('issuer', 'Unknown')}")
+        lines.append(f"Public Key:     {pk_short}")
+        lines.append(f"Baseline Date:  {current_baseline}")
+        lines.append(f"Epoch Size:     {current_epoch_size} days")
+        lines.append(f"Window Size:    {current_window} days")
+        lines.append(f"Current Epoch:  {current_epoch_starts}")
+        lines.append(f"                to {current_epoch_ends}")
         
         if current_window > current_epoch_size:
-            config.append("WARNING: Re-issuance window is larger than the epoch size! Reissuance requests will always be accepted.\n")
+            lines.append("-" * 50)
+            lines.append("WARNING: Re-issuance window > epoch size!")
             
-        return "\n".join(config)
+        lines.append("-" * 50)
+        lines.append(f"{'END OF CONFIGURATION':^50}")
+        lines.append("="*50 + "\n")
+        
+        return "\n".join(lines)
 
 
     def process_request(self, request: api.Request):

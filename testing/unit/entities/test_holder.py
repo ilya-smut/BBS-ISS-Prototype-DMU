@@ -22,8 +22,12 @@ def issued_credential():
 
     cred_name = "student-card"
 
+    issuer_name = "Mock-Issuer"
+    data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+    holder.public_data_cache.update(issuer_name, data)
+    
     init_req = holder.issuance_request(
-        issuer_pub_key=issuer.public_key,
+        issuer_name=issuer_name,
         attributes=attributes,
         cred_name=cred_name,
     )
@@ -129,7 +133,10 @@ def test_holder_rejects_out_of_order_responses():
     attr = api.IssuanceAttributes()
     attr.append("test", "test", api.AttributeType.REVEALED)
     attr.append("secret", "test", api.AttributeType.HIDDEN)
-    holder.issuance_request(issuer.public_key, attr, "c1")
+    issuer_name = "Mock-Issuer"
+    data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+    holder.public_data_cache.update(issuer_name, data)
+    holder.issuance_request(issuer_name, attr, "c1")
     
     # Now in interaction, but receiving a ForwardVC instead of Freshness
     fake_vc_resp = api.ForwardVCResponse(vc=VerifiableCredential(issuer="test", credential_subject={}))

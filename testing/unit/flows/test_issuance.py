@@ -18,8 +18,13 @@ def test_successful_issuance():
         attributes.append("license", "XYZ-123", api.AttributeType.HIDDEN)
 
         # Step 1: Issuance Request
+        # Pre-populate cache to simulate already resolved issuer
+        issuer_name = "Mock-Issuer"
+        data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+        holder.public_data_cache.update(issuer_name, data)
+        
         init_req = holder.issuance_request(
-            issuer_pub_key=issuer.public_key,
+            issuer_name=issuer_name,
             attributes=attributes,
             cred_name="id-doc"
         )
@@ -54,8 +59,14 @@ def test_concurrent_issuance_separation():
     attr2.append("name", "Bob", api.AttributeType.REVEALED)
     attr2.append("secret", "B", api.AttributeType.HIDDEN)
     
-    req1 = holder1.issuance_request(issuer1.public_key, attr1, "cred1")
-    req2 = holder2.issuance_request(issuer2.public_key, attr2, "cred2")
+    # Pre-populate cache for both
+    data1 = api.IssuerPublicData("Issuer1", issuer1.public_key, "0"*10, 52, 7)
+    holder1.public_data_cache.update("Issuer1", data1)
+    data2 = api.IssuerPublicData("Issuer2", issuer2.public_key, "0"*10, 52, 7)
+    holder2.public_data_cache.update("Issuer2", data2)
+    
+    req1 = holder1.issuance_request("Issuer1", attr1, "cred1")
+    req2 = holder2.issuance_request("Issuer2", attr2, "cred2")
     
     fresh1 = issuer1.process_request(req1)
     fresh2 = issuer2.process_request(req2)

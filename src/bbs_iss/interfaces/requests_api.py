@@ -37,6 +37,28 @@ class IssuerPublicData:
     valid_until_weeks: int
     validity_window_days: int
 
+    def check_revocation_status(self, bit_index: int) -> bool:
+        """
+        Checks if the credential at the given bit_index is revoked.
+        The revocation_bitstring is expected to be a hex-encoded bitstring.
+        Bit 0 is the MSB of the first byte.
+        Returns True if revoked (bit is 1), False if valid (bit is 0).
+        If the index is out of bounds, it is considered valid (False).
+        """
+        try:
+            bitstring_bytes = bytes.fromhex(self.revocation_bitstring)
+        except (ValueError, TypeError):
+            return False
+            
+        byte_index = bit_index // 8
+        bit_offset = bit_index % 8
+        
+        if byte_index < 0 or byte_index >= len(bitstring_bytes):
+            return False
+            
+        # Check if the bit at the specified index is set to 1
+        return bool((bitstring_bytes[byte_index] >> (7 - bit_offset)) & 1)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "issuer_name": self.issuer_name,

@@ -24,11 +24,13 @@ Tests in this category validate the core data structures, cryptographic hashing,
 
 ### `test_requests_api.py` — Data Model Serialization
 *   **`test_issuer_public_data_serialization`**: Verifies that `IssuerPublicData` maintains full integrity across JSON and dictionary round-trips.
+*   **`test_issuer_public_data_revocation_check`**: Validates the `check_revocation_status` helper against hex-encoded bitstrings and various bit indices.
 *   **`test_cache_entry_serialization`**: Ensures that `CacheEntry` objects (including timestamps) are correctly serialized.
 *   **`test_public_key_bls_equality`**: Confirms that BLS public key objects can be compared reliably.
 
 ### `test_cache.py` — Public Data Cache Management
 *   **`test_cache_update_and_get`**: Validates cache hit/miss logic and automatic UTC timestamping.
+*   **`test_cache_check_bit_index`**: Verifies the high-level revocation check, ensuring it delegates correctly and raises `IssuerNotFoundInCacheError` for missing issuers.
 *   **`test_cache_clear`**: Ensures the cache can be completely purged.
 *   **`test_cache_info_formatting`**: Verifies that `get_cache_info()` produces a correctly formatted summary string for both empty and populated states.
 
@@ -69,9 +71,13 @@ Tests focused on the internal state machines and behavioral guardrails of the pr
 ## 3. Flows (`flows/`)
 End-to-end integration tests that exercise the multi-step protocol sequences and security boundaries.
 
-### `test_issuance.py` — Blind Issuance Protocol
 *   **`test_successful_issuance`**: A stress test running 500 complete 4-step issuance cycles to ensure reliability and cryptographic stability.
 *   **`test_concurrent_issuance_separation`**: Confirms that multiple issuers and holders can operate simultaneously without state leakage or nonce collisions.
+
+### `test_holder_resolution.py` — Proactive Issuer Resolution
+*   **`test_holder_resolution_on_issuance`**: Validates that the Holder proactively resolves unknown issuers during `issuance_request` and resumes correctly.
+*   **`test_holder_resolution_failure`**: Confirms that the Holder raises `UnregisteredIssuerError` if the registry cannot resolve the issuer.
+*   **`test_holder_resolution_cache_hit`**: Verifies immediate issuance when the issuer is already cached.
 
 ### `test_presentation_flow.py` — Selective Disclosure & ZKP Verification
 *   **Cryptographic Boundary Tests**:
@@ -81,6 +87,11 @@ End-to-end integration tests that exercise the multi-step protocol sequences and
     *   `test_nonce_binding`: Rejects VPs built against rogue or stale nonces.
     *   `test_replay_attack_fails`: Ensures a VP from a past session cannot be reused against a new verifier challenge.
 *   **Entity API Tests**: Exercises the high-level `VerifierInstance` and `HolderInstance` interaction methods.
+
+### `test_verifier_resolution.py` — Asynchronous Verifier Resolution
+*   **`test_verifier_resolution_on_cache_miss`**: Validates that the Verifier parks unknown VPs, resolves the issuer, and automatically resumes verification.
+*   **`test_verifier_resolution_on_key_mismatch`**: Ensures the Verifier re-resolves the issuer if the cached public key does not match the one in the VP.
+*   **`test_verifier_resolution_failure`**: Confirms that verification fails (with no errors) if the registry lookup returns no data.
 
 *   **`test_reissued_credential_integrity`**: Confirms that instantaneous re-issuance maintains the exact same epoch boundary and `metaHash`.
 

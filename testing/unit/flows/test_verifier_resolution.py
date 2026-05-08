@@ -31,7 +31,11 @@ def test_verifier_resolution_on_cache_miss(setup_entities):
     attributes.append("name", "Alice", api.AttributeType.REVEALED)
     attributes.append("linkSecret", gen_link_secret(), api.AttributeType.HIDDEN)
     
-    init_req = holder.issuance_request(issuer.public_key, attributes, "my-cred")
+    init_req = holder.issuance_request(issuer_name, attributes, "my-cred")
+    if isinstance(init_req, api.GetIssuerDetailsRequest):
+        reg_resp = registry.process_request(init_req)
+        init_req = holder.process_request(reg_resp)
+        
     freshness = issuer.process_request(init_req)
     blind_req = holder.process_request(freshness)
     forward_vc = issuer.process_request(blind_req)
@@ -73,7 +77,11 @@ def test_verifier_resolution_on_key_mismatch(setup_entities):
     attributes.append("name", "Alice", api.AttributeType.REVEALED)
     attributes.append("linkSecret", gen_link_secret(), api.AttributeType.HIDDEN)
     
-    init_req = holder.issuance_request(issuer.public_key, attributes, "my-cred")
+    init_req = holder.issuance_request(issuer_name, attributes, "my-cred")
+    if isinstance(init_req, api.GetIssuerDetailsRequest):
+        reg_resp = registry.process_request(init_req)
+        init_req = holder.process_request(reg_resp)
+        
     freshness = issuer.process_request(init_req)
     blind_req = holder.process_request(freshness)
     forward_vc = issuer.process_request(blind_req)
@@ -117,7 +125,11 @@ def test_verifier_resolution_failure(setup_entities):
     attributes.append("name", "Alice", api.AttributeType.REVEALED)
     attributes.append("linkSecret", gen_link_secret(), api.AttributeType.HIDDEN)
     
-    init_req = holder.issuance_request(issuer.public_key, attributes, "my-cred")
+    init_req = holder.issuance_request(issuer_name, attributes, "my-cred")
+    if isinstance(init_req, api.GetIssuerDetailsRequest):
+        reg_resp = registry.process_request(init_req)
+        init_req = holder.process_request(reg_resp)
+        
     freshness = issuer.process_request(init_req)
     blind_req = holder.process_request(freshness)
     forward_vc = issuer.process_request(blind_req)

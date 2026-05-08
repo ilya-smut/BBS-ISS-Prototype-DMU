@@ -16,8 +16,13 @@ def test_issuer_rejects_overlapping_sessions():
     attr.append("test", "test", api.AttributeType.REVEALED)
     attr.append("secret", "test", api.AttributeType.HIDDEN)
     
-    req1 = holder1.issuance_request(issuer.public_key, attr, "c1")
-    req2 = holder2.issuance_request(issuer.public_key, attr, "c2")
+    issuer_name = "Mock-Issuer"
+    data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+    holder1.public_data_cache.update(issuer_name, data)
+    holder2.public_data_cache.update(issuer_name, data)
+    
+    req1 = holder1.issuance_request(issuer_name, attr, "c1")
+    req2 = holder2.issuance_request(issuer_name, attr, "c2")
     
     # First request succeeds and makes issuer busy
     issuer.process_request(req1)
@@ -36,7 +41,11 @@ def test_issuer_rejects_replayed_proof():
     attr1.append("secret", "test", api.AttributeType.HIDDEN)
     attr1.append("test", "test", api.AttributeType.REVEALED)
     
-    req1 = holder1.issuance_request(issuer.public_key, attr1, "c1")
+    issuer_name = "Issuer1"
+    data1 = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+    holder1.public_data_cache.update(issuer_name, data1)
+    
+    req1 = holder1.issuance_request(issuer_name, attr1, "c1")
     freshness1 = issuer.process_request(req1)
     valid_blind_req1 = holder1.process_request(freshness1)
     
@@ -44,7 +53,10 @@ def test_issuer_rejects_replayed_proof():
     holder2 = HolderInstance()
     attr2 = api.IssuanceAttributes()
     attr2.append("test", "tampered", api.AttributeType.HIDDEN)
-    req2 = holder2.issuance_request(issuer2.public_key, attr2, "c2")
+    issuer_name2 = "Issuer2"
+    data2 = api.IssuerPublicData(issuer_name2, issuer2.public_key, "0"*10, 52, 7)
+    holder2.public_data_cache.update(issuer_name2, data2)
+    req2 = holder2.issuance_request(issuer_name2, attr2, "c2")
     freshness2 = issuer2.process_request(req2)
     valid_blind_req2 = holder2.process_request(freshness2)
 

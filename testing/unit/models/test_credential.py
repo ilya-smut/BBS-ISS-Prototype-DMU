@@ -77,8 +77,12 @@ def issuance_setup():
     attributes.append("name", "Alice", api.AttributeType.REVEALED)
     attributes.append("ssn", "123-45", api.AttributeType.HIDDEN)
 
+    issuer_name = "Mock-Issuer"
+    data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+    holder.public_data_cache.update(issuer_name, data)
+    
     init_req = holder.issuance_request(
-        issuer_pub_key=issuer.public_key,
+        issuer_name=issuer_name,
         attributes=attributes,
         cred_name="test-cred"
     )

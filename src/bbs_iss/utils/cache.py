@@ -2,6 +2,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Dict, Optional
 from bbs_iss.interfaces.requests_api import IssuerPublicData, CacheEntry
+from bbs_iss.exceptions.exceptions import IssuerNotFoundInCacheError
 
 class PublicDataCache:
     """
@@ -32,6 +33,18 @@ class PublicDataCache:
         Retrieves the full cache entry including timestamp.
         """
         return self._cache.get(issuer_name)
+
+    def check_bit_index(self, issuer: str, bit_index: int) -> bool:
+        """
+        Looks up the issuer's public data in the cache and checks the revocation status
+        for the given bit index.
+        
+        Raises IssuerNotFoundInCacheError if the issuer is not present in the cache.
+        """
+        data = self.get(issuer)
+        if data is None:
+            raise IssuerNotFoundInCacheError(f"Issuer '{issuer}' not found in local cache")
+        return data.check_revocation_status(bit_index)
 
     def clear(self):
         """

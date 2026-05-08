@@ -129,17 +129,21 @@ Holder                                        Issuer
 
 The Registry acts as an authoritative source for Issuer public data. Entities maintain a local `PublicDataCache` and synchronize with the Registry using a "Cache-First" strategy.
 
+**Asynchronous Resolution:** Both the Holder and Verifier implement an asynchronous "Pending" state. If an interaction requires issuer metadata not present in the local cache, the entity suspends the current flow, returns a `GetIssuerDetailsRequest`, and automatically resumes the interaction upon receiving and processing the authoritative `IssuerDetailsResponse`.
+
 ```
 Entity (Holder/Verifier)                         Registry
   │                                              │
-  ├── check local cache (miss)                   │
+  ├── check local cache (miss) ──┐               │
+  │                              │               │
+  ├── suspend interaction <──────┘               │
   │                                              │
   │──── 1. GetIssuerDetailsRequest ─────────────>│
   │                                              ├── lookup issuer metadata
   │<─── 2. IssuerDetailsResponse (metadata) ─────│
   │                                              │
   ├── update local cache                         │
-  └── return data                                │
+  └── resume suspended interaction               │
 ```
 
 **Bulk Synchronization:** To facilitate efficient bootstrapping, entities can also perform a `BulkGetIssuerDetailsRequest`, which triggers the Registry to return a complete list of all registered issuers in a single interaction.
@@ -266,7 +270,7 @@ Tracks whether the Issuer is currently processing a request.
 | `set_epoch_size_days(days)` | `int` | — | Sets the default credential expiration duration in days. |
 | `set_re_issuance_window_days(days)` | `int` | — | Sets the allowed time window before expiration when re-issuance is permitted. |
 | `set_issuer_parameters(params)` | `dict` | — | Sets arbitrary parameters like the issuer's name. |
-| `get_configuration()` | — | `str` | Returns a formatted string detailing the issuer's current configuration. |
+| `get_configuration()` | — | `str` | Returns a beautifully formatted status string detailing the issuer's current configuration (borders, truncated keys, aligned epoch boundaries). |
 | `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse \| bool` | Main dispatch method. Routes `ISSUANCE` and `RE_ISSUANCE` requests to `freshness_response()`, `BLIND_SIGN` requests to `issue_vc_blind()`, `FORWARD_VP_AND_CMT` to `re_issue_vc()`, and registry responses to internal state handlers. Returns `True` if a registry interaction succeeded. |
 | `register_issuer(initial_bitstring)` | `str` | `RegisterIssuerDetailsRequest` | Initiates the registration of the issuer's public key and configuration with the Registry. |
 | `update_issuer_details(new_bitstring)` | `str` | `UpdateIssuerDetailsRequest` | Updates the registered metadata (e.g., rotating the revocation bitstring). |
@@ -299,6 +303,7 @@ Tracks active interaction state including the Issuer's public key, attribute set
 | `attributes`      | `IssuanceAttributes \| None` | The attribute set for this credential        |
 | `cred_name`       | `str \| None`            | Name identifier for the credential               |
 | `original_request`| `RequestType \| None`    | The request type that started this interaction   |
+| `pending_issuer_name`| `str \| None`          | The name of an issuer awaiting registry resolution |
 
 | Method / Property                                     | Description                                    |
 |------------------------------------------------------|------------------------------------------------|
@@ -313,8 +318,8 @@ Tracks active interaction state including the Issuer's public key, attribute set
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__()` | — | — | Initializes empty state, a `credentials` dictionary, and a `public_data_cache`. |
-| `process_request(request)` | `Request` | `BlindSignRequest \| ForwardVpAndCmtRequest \| IssuerPublicData \| list[IssuerPublicData] \| bool` | Dispatch method. Routes `FRESHNESS` responses to requests, `FORWARD_VC` to storage logic, and `ISSUER_DETAILS` responses to the `PublicDataCache`. |
-| `issuance_request(issuer_pub_key, attributes, cred_name)` | `PublicKeyBLS`, `IssuanceAttributes`, `str` | `VCIssuanceRequest` | Initializes the Holder's interaction state and returns an issuance request. |
+| `process_request(request)` | `Request` | `BlindSignRequest \| ForwardVpAndCmtRequest \| IssuerPublicData \| list[IssuerPublicData] \| VCIssuanceRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses, `FORWARD_VC` storage, and `ISSUER_DETAILS` responses. Handles **Asynchronous Resumption**: if a response completes a pending issuer resolution, it automatically proceeds to the next step of the suspended issuance flow. |
+| `issuance_request(issuer_name, attributes, cred_name)` | `str`, `IssuanceAttributes`, `str` | `VCIssuanceRequest \| GetIssuerDetailsRequest` | Cache-first lookup for the issuer. If found, returns `VCIssuanceRequest` immediately. If not found, stores the request parameters in a pending state and returns `GetIssuerDetailsRequest` to trigger resolution. |
 | `re_issuance_request(vc_name, always_hidden_keys=None)` | `str`, `list[str]` | `Request` | Prepares attributes from the existing credential for re-issuance, retaining those specified in `always_hidden_keys` as blinded. |
 | `blind_sign_request(freshness)` | `bytes` (nonce) | `BlindSignRequest` | Checks `blind_sign_request_ready`, stores the nonce, calls `build_commitment_append_meta()`, and constructs a `BlindSignRequest`. Raises `HolderStateError` if preconditions are not met. |
 | `forward_vp_and_cmt_request(freshness)` | `bytes` | `ForwardVpAndCmtRequest` | Builds a new commitment and a Verifiable Presentation of the existing credential using the given nonce. |
@@ -343,6 +348,7 @@ Tracks whether the Verifier is currently waiting for a presentation.
 | `freshness` | `bytes \| None`| The challenge nonce issued to the Holder              |
 | `attributes`| `list[str] \| None`| The list of attributes requested                      |
 | `type`      | `RequestType \| None` | Tracking the active request type (`VP_REQUEST`) |
+| `queued_response`| `ForwardVPResponse \| None`| A VP parked while awaiting issuer resolution |
 
 | Method / Property                               | Description                                    |
 |-------------------------------------------------|------------------------------------------------|
@@ -356,7 +362,7 @@ Tracks whether the Verifier is currently waiting for a presentation.
 |--------|-----------|---------|-------------|
 | `__init__()` | — | — | Initializes empty state and a `public_data_cache`. |
 | `presentation_request(requested_attributes)` | `list[str]` | `VPRequest` | Generates a 32-byte challenge nonce via `gen_nonce()`, saves it to state along with the required attributes, and returns a `VPRequest`. Raises `VerifierStateError` if already busy. |
-| `process_request(request)` | `Request` | `tuple \| IssuerPublicData \| list[IssuerPublicData]` | Main dispatch method. Routes `FORWARD_VP` responses to `verify_vp()` and registry responses to the `PublicDataCache`. |
+| `process_request(request)` | `Request` | `tuple \| IssuerPublicData \| list[IssuerPublicData] \| GetIssuerDetailsRequest` | Main dispatch method. Routes `FORWARD_VP` responses to `verify_vp()` and registry responses to the `PublicDataCache`. Implements **Asynchronous Resolution**: if `FORWARD_VP` targets an unknown issuer, it parks the VP in `queued_response` and returns a `GetIssuerDetailsRequest`. It automatically resumes verification once the registry response is processed. |
 | `verify_vp(vp, pub_key)` | `VerifiablePresentation`, `PublicKeyBLS` | `tuple[bool, dict \| None, VP]` | Two-phase verification. Phase 1 checks Attribute Completeness against the original `requested_attributes`. Phase 2 reconstructs the bound nonce and runs BBS+ `verify_proof()`. Returns `(is_valid, revealed_attributes, vp_object)`. |
 | `get_issuer_details(issuer_name)` | `str` | `IssuerPublicData \| GetIssuerDetailsRequest` | Triggers authoritative metadata lookup. |
 | `fetch_all_issuer_details()` | — | `BulkGetIssuerDetailsRequest` | Triggers a full registry sync. |
@@ -369,9 +375,8 @@ Tracks whether the Verifier is currently waiting for a presentation.
 
 A centralized authority that manages `IssuerPublicData` records.
 
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
 | `process_request(request)` | `Request` | `IssuerDetailsResponse \| BulkIssuerDetailsResponse` | Validates and stores incoming issuer data, or serves requested metadata. |
+| `get_status_string()` | — | `str` | Returns a beautifully formatted summary of all registered issuers. |
 
 ---
 
@@ -403,7 +408,23 @@ Wrapper around a derived BBS+ signing public key.
 |-----------------|-----------|---------|-------------|
 | `derive_signing_public_key(public_key, total_messages)` | `PublicKeyBLS`, `int` | `SigningPublicKey` | Derives a BBS+ signing key from a BLS public key for a given message count via `BlsKeyPair.get_bbs_key()`. |
 
-##### `AttributeType` (Enum)
+##### `IssuerPublicData`
+ 
+ The authoritative metadata record for an Issuer, stored in the Registry and local caches.
+ 
+ | Attribute | Type | Description |
+ |-----------|------|-------------|
+ | `issuer_name` | `str` | Unique identifier for the issuer |
+ | `public_key` | `PublicKeyBLS` | The issuer's BLS public key |
+ | `revocation_bitstring` | `str` | Hex-encoded revocation status vector |
+ | `valid_until_weeks` | `int` | Default credential validity duration |
+ | `validity_window_days` | `int` | Re-issuance window configuration |
+ 
+ | Method | Parameters | Returns | Description |
+ |--------|------------|---------|-------------|
+ | `check_revocation_status(bit_index)` | `int` | `bool` | Returns `True` if the credential at the given index is marked as revoked in the bitstring. |
+ 
+ ##### `AttributeType` (Enum)
 
 | Member     | Value | Description        |
 |-----------|-------|---------------------|
@@ -567,6 +588,8 @@ All exceptions use the pattern `def __init__(self, message="<default>")` unless 
 | `ProofValidityError` | "Invalid proof" | Raised on failure of BBS+ signature verification after unblinding on the Holder side, or failure of blinded commitment proof verification on the Issuer side. |
 | `VerifierNotInInteraction`| "Verifier is not in an active interaction" | Calling `process_request()` in the Verifier without a prior `presentation_request()` |
 | `VerifierStateError` | "Invalid verifier state" | State precondition not met in Verifier (e.g. issuing two VP requests sequentially). Accepts an optional `state` keyword argument. |
+| `UnregisteredIssuerError` | "Issuer not found in registry" | Dispatched by Holder if a registry resolution returns no data for a pending issuance. |
+| `IssuerNotFoundInCacheError`| "Issuer not found in local cache" | Attempting to access metadata directly without checking the registry. |
 
 ---
 
@@ -594,6 +617,7 @@ An in-memory manager for `IssuerPublicData` records, used by Holders and Verifie
 | `get_entry(issuer_name)` | `str` | `CacheEntry \| None` | Returns the full `CacheEntry` (including metadata and `obtained_at` timestamp). |
 | `clear()` | — | — | Purges all cached records. |
 | `get_cache_info()` | — | `str` | Returns a beautifully formatted string summary of all cached issuers. |
+| `check_bit_index(issuer, bit_index)` | `str`, `int` | `bool` | High-level revocation check. Retrieves the issuer from the cache and checks the specified bit index. Raises `IssuerNotFoundInCacheError` if the issuer is not present. |
 
 ---
 
@@ -628,8 +652,15 @@ attributes = api.IssuanceAttributes()
 attributes.append("secret", utils.gen_link_secret(), api.AttributeType.HIDDEN)
 attributes.append("degree", "Bachelor of Cryptography", api.AttributeType.REVEALED)
 
-# Holder initiates issuance
-init_request = holder.issuance_request(issuer.public_key, attributes, "degree-cred")
+# Holder initiates issuance using issuer name (authoritative resolution)
+issuer_name = "University-Authority"
+init_request = holder.issuance_request(issuer_name, attributes, "degree-cred")
+
+if isinstance(init_request, api.GetIssuerDetailsRequest):
+    # Proactive resolution triggered
+    reg_resp = registry.process_request(init_request)
+    init_request = holder.process_request(reg_resp)
+
 freshness_response = issuer.process_request(init_request)
 blind_sign_request = holder.process_request(freshness_response)
 forward_vc_response = issuer.process_request(blind_sign_request)
