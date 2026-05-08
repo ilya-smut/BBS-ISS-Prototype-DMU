@@ -25,7 +25,7 @@ def test_issuer_public_data_serialization():
     # Dict serialization
     d = data.to_dict()
     assert d["issuer_name"] == "Test-Issuer"
-    assert d["public_key"] == pk.key.hex()
+    assert d["public_key"] == pk.to_dict()
     
     # Dict deserialization
     data2 = api.IssuerPublicData.from_dict(d)

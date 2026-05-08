@@ -76,25 +76,23 @@ BBS-ISS-Prototype-DMU/
 │       │   └── registry.py         # RegistryInstance class
 │       ├── interfaces/             # Shared data types and protocol messages
 │       │   ├── __init__.py
-│       │   ├── requests_api.py     # Request/response classes and data models
+│       │   ├── requests_api.py     # Request/response classes, serialization, pretty-printing
 │       │   └── credential.py       # VerifiableCredential and VerifiablePresentation classes
 │       ├── exceptions/             # Custom exception hierarchy
 │       │   └── exceptions.py       # All project exceptions
 │       └── utils/                  # Utility functions
 │           ├── utils.py            # Nonce generation, link secret generation
 │           └── cache.py            # PublicDataCache manager
-    ├── testing/
-    │   ├── unit/                   # Pytest comprehensive unit test suite
-    │   │   ├── entities/           # Participant state and interaction tests (includes Registry)
-    │   │   ├── flows/              # End-to-end multi-round protocol flows
-    │   │   └── models/             # Cryptographic payload, validation, and cache testing
-    ├── vp-test.py                  # End-to-end issuance and presentation test script
-    ├── examples/                   # Practical usage demonstrations
-    │   ├── full_cycle.py           # End-to-end flow with issuance and presentation
-    │   └── registry.py             # Demonstration of registry lookups and caching
-│   ├── issuance-test.py            # Issuance test script
-│   ├── playground.ipynb            # Interactive end-to-end issuance notebook
-│   └── test-notebook.ipynb         # Test notebook
+├── testing/
+│   ├── demo.py                     # High-level end-to-end interactive demonstration
+│   └── unit/                       # Pytest comprehensive unit test suite
+│       ├── entities/               # Participant state and interaction tests
+│       ├── flows/                  # End-to-end multi-round protocol flows
+│       └── models/                 # Cryptographic payload, serialization, and cache testing
+├── vp-test.py                      # Original end-to-end issuance/presentation script
+├── examples/                       # Practical usage demonstrations
+│   ├── full_cycle.py               # End-to-end flow with issuance and presentation
+│   └── registry.py                 # Demonstration of registry lookups and caching
 └── reference/
     └── main.pdf                    # Reference paper
 ```
@@ -386,7 +384,7 @@ A centralized authority that manages `IssuerPublicData` records.
 
 **Module:** `bbs_iss.interfaces.requests_api`
 
-Contains all request/response classes, key wrappers, and the attribute management model.
+Contains all request/response classes, key wrappers, and the attribute management model. All objects in this module support standardized serialization (`to_dict`/`to_json`) and human-readable reporting (`get_print_string`).
 
 ##### `PublicKeyBLS`
 
@@ -618,6 +616,16 @@ An in-memory manager for `IssuerPublicData` records, used by Holders and Verifie
 | `clear()` | — | — | Purges all cached records. |
 | `get_cache_info()` | — | `str` | Returns a beautifully formatted string summary of all cached issuers. |
 | `check_bit_index(issuer, bit_index)` | `str`, `int` | `bool` | High-level revocation check. Retrieves the issuer from the cache and checks the specified bit index. Raises `IssuerNotFoundInCacheError` if the issuer is not present. |
+
+---
+
+### Serialization & Debugging
+
+To facilitate real-world data exchange across various mediums (HTTP, QR scans, etc.), all request and response objects implement standardized serialization:
+
+- **JSON/Dict Support**: Every `Request` subclass supports `to_dict()`, `from_dict()`, `to_json()`, and `from_json()`. Binary fields (keys, proofs, commitments) are automatically hex-encoded.
+- **Polymorphic Reconstruction**: The base `Request` class includes a factory `from_dict()` method. This enables the system to receive a generic JSON blob and automatically reconstruct the correct specific subclass (e.g., `BlindSignRequest`) based on the internal `request_type` discriminator.
+- **Rich Pretty-Printing**: Each request class implements `get_print_string()`, providing a human-readable, bordered summary of its contents. Complex nested structures like `VerifiableCredential` and `VerifiablePresentation` are automatically pretty-printed using formatted JSON.
 
 ---
 

@@ -22,11 +22,17 @@ Tests in this category validate the core data structures, cryptographic hashing,
 
 *   **`TestBuildBoundNonce`**: Validates the construction of the *effective nonce* (binding the verifier's challenge to the metadata). Verifies that different challenges or different metadata result in unique bound nonces.
 
-### `test_requests_api.py` — Data Model Serialization
+### `test_requests_api.py` — Data Model Reporting
 *   **`test_issuer_public_data_serialization`**: Verifies that `IssuerPublicData` maintains full integrity across JSON and dictionary round-trips.
 *   **`test_issuer_public_data_revocation_check`**: Validates the `check_revocation_status` helper against hex-encoded bitstrings and various bit indices.
 *   **`test_cache_entry_serialization`**: Ensures that `CacheEntry` objects (including timestamps) are correctly serialized.
 *   **`test_public_key_bls_equality`**: Confirms that BLS public key objects can be compared reliably.
+
+### `test_requests_api_serialization.py` — Polymorphic Serialization
+*   **`test_public_key_serialization`**: Verifies hex-encoding of BLS keys.
+*   **Polymorphic Dispatch**: Validates `Request.from_dict` and `Request.from_json` across all request types (`ISSUANCE`, `BLIND_SIGN`, `VP_REQUEST`, etc.).
+*   **Nested Object Support**: Ensures VCs and VPs are correctly handled within request payloads.
+*   **Pretty-Print Smoke Tests**: Confirms that `get_print_string()` generates valid, human-readable output for all request variants without crashing.
 
 ### `test_cache.py` — Public Data Cache Management
 *   **`test_cache_update_and_get`**: Validates cache hit/miss logic and automatic UTC timestamping.
