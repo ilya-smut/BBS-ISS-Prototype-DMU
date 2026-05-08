@@ -63,6 +63,14 @@ Tests focused on the internal state machines and behavioral guardrails of the pr
     *   `test_epoch_boundary_before_baseline`: Ensures logic functions correctly for dates prior to the configured baseline.
     *   `test_epoch_boundary_late_issuance`: Confirms that outdated credentials re-sync to the currently active epoch.
     *   `test_epoch_boundary_late_issuance_inside_window`: Proves that re-issuing an outdated credential near an epoch boundary bumps to the *next* epoch, preventing immediate expiration.
+    *   **`test_issuer_status_string_integration`**: Confirms that the `BitstringManager` status report is correctly integrated into the issuer's configuration output.
+
+### `test_bitstring_manager.py` — Bitstring Lifecycle & Reuse
+*   **`test_initialization_and_indexing`**: Verifies correct bit-addressing and state tracking for newly initialized bitstrings.
+*   **`test_revocation_logic`**: Validates the transition of indices to the revoked state and ensures bit-level integrity.
+*   **`test_exhaustion_error`**: Confirms that `BitstringExhaustedError` is raised when no indices (new or expired) are available.
+*   **`test_epoch_based_reuse`**: Validates the automatic reclamation of capacity for indices whose `expiry_epoch` has passed relative to the `current_epoch`.
+*   **`test_bitstring_expansion`**: Verifies dynamic resizing of the bitstring while preserving existing revocation states.
 
 *   **`test_verifier_resets_after_verification`**: Ensures the Verifier returns to an idle state after a successful interaction.
 
@@ -103,6 +111,9 @@ End-to-end integration tests that exercise the multi-step protocol sequences and
 
 ### `test_registry_protocol.py` — Cross-Entity Synchronization
 *   **`test_issuer_registration_flow`**: Validates the full Issuer ↔ Registry handshake for new registrations.
+*   **`test_revocation_cycle.py` — End-to-End Revocation & Capacity Management**:
+    *   **`test_full_revocation_and_reissuance_cycle`**: A complete integration test covering bulk issuance, bulk revocation, registry synchronization, status verification by the Holder, and recovery via re-issuance.
+    *   **`test_bitstring_exhaustion_and_reuse`**: Exercises the system's ability to handle total capacity exhaustion and validates the automatic release of expired bits using `freezegun` for temporal mocking.
 *   **`test_holder_lazy_lookup_flow`**: Proves the "Cache-First, Registry-Second" behavior of the Holder lookup system.
 *   **`test_verifier_bulk_sync_flow`**: Verifies that Verifiers can perform a full-registry synchronization in a single interaction.
 *   **State Guardrail Tests**: Rejects unsolicited or out-of-order registry responses to prevent session hijacking or state corruption.

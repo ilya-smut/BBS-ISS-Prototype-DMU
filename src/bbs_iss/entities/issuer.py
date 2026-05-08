@@ -1,14 +1,107 @@
 import os
+import random
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 import bbs_iss.utils.utils as utils
-from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError, IssuerStateError
+from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError, IssuerStateError, BitstringExhaustedError
 from bbs_iss.interfaces.credential import VerifiableCredential
 from datetime import datetime, timedelta, timezone
 
 MOCK_ISSUER_PARAMETERS = {
     "issuer": "Mock-Issuer"
 }
+
+class BitstringManager:
+    def __init__(self, default_num_bytes: int = 128):
+        self.length = default_num_bytes * 8
+        self.revocation_bits = bytearray(default_num_bytes)
+        self.control_bits = bytearray(default_num_bytes)
+        # Initialize with -1 (never assigned)
+        self.expiry_epochs = [-1] * self.length
+
+    def get_revocation_bitstring_hex(self) -> str:
+        return self.revocation_bits.hex()
+
+    def extend_bitstring(self, amount_bytes: int):
+        amount_bits = amount_bytes * 8
+        self.length += amount_bits
+        self.revocation_bits.extend(bytearray(amount_bytes))
+        self.control_bits.extend(bytearray(amount_bytes))
+        self.expiry_epochs.extend([-1] * amount_bits)
+
+    def generate_revocation_index(self, current_epoch: int, expiry_epoch: int) -> int:
+        start_index = random.randint(0, self.length - 1)
+        
+        found_index = -1
+        for i in range(self.length):
+            idx = (start_index - i) % self.length
+            
+            byte_idx = idx // 8
+            bit_offset = idx % 8
+            is_assigned = (self.control_bits[byte_idx] >> (7 - bit_offset)) & 1
+            
+            # Available if never assigned OR its validity has been surpassed
+            if not is_assigned or self.expiry_epochs[idx] <= current_epoch:
+                found_index = idx
+                break
+        
+        if found_index == -1:
+            raise BitstringExhaustedError()
+
+        byte_idx = found_index // 8
+        bit_offset = found_index % 8
+        
+        # Mark as assigned and NOT revoked
+        self.control_bits[byte_idx] |= (1 << (7 - bit_offset))
+        self.revocation_bits[byte_idx] &= ~(1 << (7 - bit_offset))
+        self.expiry_epochs[found_index] = expiry_epoch
+        
+        return found_index
+
+    def get_status_string(self, current_epoch: int, next_epoch_date: str = "N/A") -> str:
+        total = self.length
+        assigned_count = 0
+        available_count = 0
+        revoked_count = 0
+        to_be_released = 0
+        
+        for i in range(self.length):
+            byte_idx = i // 8
+            bit_offset = i % 8
+            
+            is_assigned = (self.control_bits[byte_idx] >> (7 - bit_offset)) & 1
+            is_revoked = (self.revocation_bits[byte_idx] >> (7 - bit_offset)) & 1
+            
+            if is_revoked:
+                revoked_count += 1
+            
+            if not is_assigned or self.expiry_epochs[i] <= current_epoch:
+                available_count += 1
+            else:
+                assigned_count += 1
+                if self.expiry_epochs[i] == current_epoch + 1:
+                    to_be_released += 1
+                    
+        lines = ["\n" + "-"*50]
+        lines.append(f"{'BITSTRING STATUS':^50}")
+        lines.append("-" * 50)
+        lines.append(f"Total Indices:      {total}")
+        lines.append(f"Available Indices:  {available_count}")
+        lines.append(f"Assigned Indices:   {assigned_count}")
+        lines.append(f"Revoked Indices:    {revoked_count}")
+        lines.append(f"Releasing Next:     {to_be_released} (Epoch {current_epoch + 1})")
+        lines.append(f"Next Epoch Date:    {next_epoch_date}")
+        lines.append("-" * 50 + "\n")
+        
+        return "\n".join(lines)
+
+    def revoke_index(self, index: int):
+        if index < 0 or index >= self.length:
+            raise ValueError(f"Index {index} out of bounds")
+        
+        byte_idx = index // 8
+        bit_offset = index % 8
+        self.revocation_bits[byte_idx] |= (1 << (7 - bit_offset))
 
 class IssuerInstance:
     DEFAULT_EPOCH_SIZE_DAYS = 49
@@ -54,6 +147,22 @@ class IssuerInstance:
         self.re_issuance_window_days = None
         self.issuer_parameters = None
         self.baseline_date = None
+        self.bitstring_manager = BitstringManager()
+
+    def _get_epoch_params(self):
+        days = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
+        epoch_delta = timedelta(days=days)
+        
+        current_baseline = self.baseline_date if self.baseline_date else self.DEFAULT_BASELINE_DATE_STR
+        baseline = datetime.fromisoformat(current_baseline.replace('Z', '+00:00'))
+        
+        now = datetime.now(timezone.utc)
+        return baseline, epoch_delta, now
+
+    def get_current_epoch(self) -> int:
+        baseline, epoch_delta, now = self._get_epoch_params()
+        distance = now - baseline
+        return int(distance.total_seconds() // epoch_delta.total_seconds())
 
     def set_epoch_size_days(self, days: int):
         self.epoch_size_days = days
@@ -73,19 +182,11 @@ class IssuerInstance:
         current_window = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
         current_baseline = self.baseline_date if self.baseline_date else self.DEFAULT_BASELINE_DATE_STR
         
-        days = current_epoch_size
-        epoch = timedelta(days=days)
-        baseline = datetime.fromisoformat(current_baseline.replace('Z', '+00:00'))
-        now = datetime.now(timezone.utc)
-        distance = now - baseline
-        
-        if distance.total_seconds() < 0:
-            current_active_boundary = baseline + epoch
-        else:
-            num_epochs = int(distance.total_seconds() // epoch.total_seconds())
-            current_active_boundary = baseline + epoch * (num_epochs + 1)
+        baseline, epoch_delta, now = self._get_epoch_params()
+        num_epochs = self.get_current_epoch()
+        current_active_boundary = baseline + epoch_delta * (num_epochs + 1)
             
-        current_epoch_starts = (current_active_boundary - epoch).isoformat(timespec='seconds').replace('+00:00', 'Z')
+        current_epoch_starts = (current_active_boundary - epoch_delta).isoformat(timespec='seconds').replace('+00:00', 'Z')
         current_epoch_ends = current_active_boundary.isoformat(timespec='seconds').replace('+00:00', 'Z')
 
         pk_hex = self.public_key.key.hex()
@@ -106,12 +207,18 @@ class IssuerInstance:
             lines.append("-" * 50)
             lines.append("WARNING: Re-issuance window > epoch size!")
             
-        lines.append("-" * 50)
+        lines.append(self.get_bitstring_status())
         lines.append(f"{'END OF CONFIGURATION':^50}")
         lines.append("="*50 + "\n")
         
         return "\n".join(lines)
 
+
+    def get_bitstring_status(self) -> str:
+        baseline, epoch_delta, now = self._get_epoch_params()
+        curr = self.get_current_epoch()
+        next_epoch_date = (baseline + epoch_delta * (curr + 1)).isoformat(timespec='seconds').replace('+00:00', 'Z')
+        return self.bitstring_manager.get_status_string(curr, next_epoch_date)
 
     def process_request(self, request: api.Request):
         if request.request_type == api.RequestType.ISSUANCE:
@@ -319,41 +426,40 @@ class IssuerInstance:
     def key_gen(self):
         return bbs.BlsKeyPair.generate_g2(seed = os.urandom(32))
 
-    def generate_valid_until(self) -> str:
-        days = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
-        epoch = timedelta(days=days)
+    def generate_valid_until(self, return_epoch: bool = False) -> str | int:
+        baseline, epoch_delta, now = self._get_epoch_params()
+        curr_epoch = self.get_current_epoch()
         
-        baseline_str = self.baseline_date if self.baseline_date else self.DEFAULT_BASELINE_DATE_STR
-        baseline = datetime.fromisoformat(baseline_str.replace('Z', '+00:00'))
-        
-        now = datetime.now(timezone.utc)
-        distance = now - baseline
-        
-        if distance.total_seconds() < 0:
-            expiry = baseline + epoch
-        else:
-            num_epochs = int(distance.total_seconds() // epoch.total_seconds())
-            expiry = baseline + epoch * (num_epochs + 1)
+        target_epoch = max(1, curr_epoch + 1)
+        expiry = baseline + epoch_delta * target_epoch
             
         window = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
         if (expiry - now) <= timedelta(days=window):
-            expiry += epoch
+            target_epoch += 1
+            expiry = baseline + epoch_delta * target_epoch
                 
+        if return_epoch:
+            return target_epoch
         return expiry.isoformat(timespec='seconds').replace('+00:00', 'Z')
 
     def generate_revocation_index(self) -> str:
-        return "123" # Mock implementation
+        curr = self.get_current_epoch()
+        expiry_epoch_num = self.generate_valid_until(return_epoch=True)
+        idx = self.bitstring_manager.generate_revocation_index(curr, expiry_epoch_num)
+        return f"{idx:x}"
 
     def revoke_index(self, index: str):
-        # This method will be used in the future to mark the index as revoked in the revocation list.
-        pass
+        self.bitstring_manager.revoke_index(int(index, 16))
+
+    def extend_bitstring(self, amount_bytes: int):
+        self.bitstring_manager.extend_bitstring(amount_bytes)
 
     def freshness_response(self, request_type: api.RequestType):
         nonce = utils.gen_nonce()
         self.state.start_interaction(request_type, nonce)
         return api.FreshnessUpdateResponse(nonce)
 
-    def register_issuer(self, initial_bitstring: str = "00") -> api.RegisterIssuerDetailsRequest:
+    def register_issuer(self) -> api.RegisterIssuerDetailsRequest:
         issuer_name = self.issuer_parameters["issuer"] if self.issuer_parameters and "issuer" in self.issuer_parameters else MOCK_ISSUER_PARAMETERS["issuer"]
         epoch_size = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
         window_days = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
@@ -361,7 +467,7 @@ class IssuerInstance:
         issuer_data = api.IssuerPublicData(
             issuer_name=issuer_name,
             public_key=self.public_key,
-            revocation_bitstring=initial_bitstring,
+            revocation_bitstring=self.bitstring_manager.get_revocation_bitstring_hex(),
             valid_until_weeks=epoch_size // 7,
             validity_window_days=window_days
         )
@@ -370,7 +476,7 @@ class IssuerInstance:
         
         return api.RegisterIssuerDetailsRequest(issuer_name, issuer_data)
 
-    def update_issuer_details(self, new_bitstring: str) -> api.UpdateIssuerDetailsRequest:
+    def update_issuer_details(self) -> api.UpdateIssuerDetailsRequest:
         issuer_name = self.issuer_parameters["issuer"] if self.issuer_parameters and "issuer" in self.issuer_parameters else MOCK_ISSUER_PARAMETERS["issuer"]
         epoch_size = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS
         window_days = self.re_issuance_window_days if self.re_issuance_window_days is not None else self.DEFAULT_RE_ISSUANCE_WINDOW_DAYS
@@ -378,7 +484,7 @@ class IssuerInstance:
         issuer_data = api.IssuerPublicData(
             issuer_name=issuer_name,
             public_key=self.public_key,
-            revocation_bitstring=new_bitstring,
+            revocation_bitstring=self.bitstring_manager.get_revocation_bitstring_hex(),
             valid_until_weeks=epoch_size // 7,
             validity_window_days=window_days
         )

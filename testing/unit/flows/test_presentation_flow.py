@@ -33,7 +33,7 @@ def issued_credential():
 
     # Step 1 → 2 → 3 → 4
     issuer_name = "Mock-Issuer"
-    data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+    data = api.IssuerPublicData(issuer_name, issuer.public_key, issuer.bitstring_manager.get_revocation_bitstring_hex(), 52, 7)
     holder.public_data_cache.update(issuer_name, data)
     
     init_req = holder.issuance_request(

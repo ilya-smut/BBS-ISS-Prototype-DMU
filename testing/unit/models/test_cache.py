@@ -56,11 +56,11 @@ def test_cache_check_bit_index():
     cache.update("Issuer1", data)
     
     # Valid checks
-    assert cache.check_bit_index("Issuer1", 0) is True
-    assert cache.check_bit_index("Issuer1", 1) is True
-    assert cache.check_bit_index("Issuer1", 2) is False
+    assert cache.check_bit_index("Issuer1", "0") is True
+    assert cache.check_bit_index("Issuer1", "1") is True
+    assert cache.check_bit_index("Issuer1", "2") is False
     
     # Missing issuer check
     with pytest.raises(IssuerNotFoundInCacheError) as excinfo:
-        cache.check_bit_index("UnknownIssuer", 0)
+        cache.check_bit_index("UnknownIssuer", "0")
     assert "UnknownIssuer" in str(excinfo.value)

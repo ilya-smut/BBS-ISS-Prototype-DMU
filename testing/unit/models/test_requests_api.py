@@ -61,11 +61,11 @@ def test_issuer_public_data_revocation_check():
         validity_window_days=1
     )
     
-    assert data.check_revocation_status(0) is True  # First bit of 'C' (1)
-    assert data.check_revocation_status(1) is True  # Second bit of 'C' (1)
-    assert data.check_revocation_status(2) is False # Third bit (0)
-    assert data.check_revocation_status(7) is False # Last bit of first byte (0)
+    assert data.check_revocation_status("0") is True  # First bit of 'C' (1)
+    assert data.check_revocation_status("1") is True  # Second bit of 'C' (1)
+    assert data.check_revocation_status("2") is False # Third bit (0)
+    assert data.check_revocation_status("7") is False # Last bit of first byte (0)
     
     # Out of bounds
-    assert data.check_revocation_status(-1) is False
-    assert data.check_revocation_status(8) is False # Start of second byte (doesn't exist)
+    assert data.check_revocation_status("-1") is False
+    assert data.check_revocation_status("8") is False # Start of second byte (doesn't exist)

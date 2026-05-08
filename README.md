@@ -146,7 +146,7 @@ Entity (Holder/Verifier)                         Registry
 
 **Bulk Synchronization:** To facilitate efficient bootstrapping, entities can also perform a `BulkGetIssuerDetailsRequest`, which triggers the Registry to return a complete list of all registered issuers in a single interaction.
 
-**Issuer Registration:** Issuers proactively announce their metadata (Public Key, Epoch configuration, Revocation bitstring) to the Registry via `RegisterIssuerDetailsRequest`.
+**Issuer Registration:** Issuers proactively announce their metadata (Public Key, Epoch configuration, Revocation status bitstring) to the Registry via `RegisterIssuerDetailsRequest`.
 
 ---
 
@@ -154,7 +154,7 @@ Entity (Holder/Verifier)                         Registry
 
 **Step 2 — Freshness Response:** The Issuer generates a random 32-byte nonce and returns it as a `FreshnessUpdateResponse`. This value binds the commitment to a specific session, preventing replay attacks.
 
-**Step 3 — Blind Sign Request:** The Holder builds a Pedersen commitment over its blinded attributes using the Issuer's nonce and public key. This step automatically appends three essential revealed metadata attributes: `metaHash` (which deterministically hashes the credential's contextual metadata), `validUntil` (expiration timestamp), and `revocationMaterial` (a bitstring index for future revocation checks). It sends a `BlindSignRequest` containing the commitment, a zero-knowledge proof of correct commitment construction, the revealed attributes, and their indices.
+**Step 3 — Blind Sign Request:** The Holder builds a Pedersen commitment over its blinded attributes using the Issuer's nonce and public key. This step automatically appends three essential revealed metadata attributes: `metaHash` (which deterministically hashes the credential's contextual metadata), `validUntil` (expiration timestamp), and `revocationMaterial` (a hex-encoded bitstring index for future revocation checks). It sends a `BlindSignRequest` containing the commitment, a zero-knowledge proof of correct commitment construction, the revealed attributes, and their indices.
 
 **Step 4 — Forward VC Response:** The Issuer first pre-computes the `VerifiableCredential` skeleton from the revealed and blinded attribute indices, then re-calculates the `metaHash` on the constructed VC and overwrites the placeholder value in both the VC and the signing request. It then verifies the blinded commitment proof. If valid, it computes a blind BBS+ signature over the commitment and the revealed attributes, attaches the signature to the VC, and returns it as a `ForwardVCResponse`.
 
@@ -268,7 +268,7 @@ Tracks whether the Issuer is currently processing a request.
 | `set_epoch_size_days(days)` | `int` | — | Sets the default credential expiration duration in days. |
 | `set_re_issuance_window_days(days)` | `int` | — | Sets the allowed time window before expiration when re-issuance is permitted. |
 | `set_issuer_parameters(params)` | `dict` | — | Sets arbitrary parameters like the issuer's name. |
-| `get_configuration()` | — | `str` | Returns a beautifully formatted status string detailing the issuer's current configuration (borders, truncated keys, aligned epoch boundaries). |
+| `get_configuration()` | — | `str` | Returns a beautifully formatted status string detailing the issuer's current configuration, including real-time bitstring utilization metrics (Total, Available, Revoked indices, and upcoming epoch releases). |
 | `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse \| bool` | Main dispatch method. Routes `ISSUANCE` and `RE_ISSUANCE` requests to `freshness_response()`, `BLIND_SIGN` requests to `issue_vc_blind()`, `FORWARD_VP_AND_CMT` to `re_issue_vc()`, and registry responses to internal state handlers. Returns `True` if a registry interaction succeeded. |
 | `register_issuer(initial_bitstring)` | `str` | `RegisterIssuerDetailsRequest` | Initiates the registration of the issuer's public key and configuration with the Registry. |
 | `update_issuer_details(new_bitstring)` | `str` | `UpdateIssuerDetailsRequest` | Updates the registered metadata (e.g., rotating the revocation bitstring). |
@@ -278,7 +278,7 @@ Tracks whether the Issuer is currently processing a request.
 | `re_issue_vc(request)` | `ForwardVpAndCmtRequest` | `ForwardVCResponse` | Verifies the presentation of the old credential, ensures attributes match the new request, checks re-issuance window limits, verifies the new commitment, computationally revokes the old index, and issues a new VC with updated expiry. |
 | `generate_valid_until()` | — | `str` | Calculates the upcoming globally-aligned epoch boundary based on the `baseline_date` and `epoch_size_days`, automatically rolling to the next boundary if the current time falls within the re-issuance window. |
 | `generate_revocation_index()` | — | `str` | Generates a revocation index identifier for the credential. |
-| `revoke_index(index)` | `str` | — | Marks the given index as revoked (mock implementation). |
+| `revoke_index(index)` | `str` (hex) | — | Marks the given hex index as revoked in the bitstring manager. |
 | `key_gen()` | — | `bbs.BlsKeyPair` | Generates a BLS12-381 G2 keypair from a random 32-byte seed. |
 
 ---
@@ -420,7 +420,7 @@ Wrapper around a derived BBS+ signing public key.
  
  | Method | Parameters | Returns | Description |
  |--------|------------|---------|-------------|
- | `check_revocation_status(bit_index)` | `int` | `bool` | Returns `True` if the credential at the given index is marked as revoked in the bitstring. |
+ | `check_revocation_status(bit_index_hex)` | `str` (hex) | `bool` | Returns `True` if the credential at the given hex index is marked as revoked in the bitstring. |
  
  ##### `AttributeType` (Enum)
 
@@ -588,6 +588,7 @@ All exceptions use the pattern `def __init__(self, message="<default>")` unless 
 | `VerifierStateError` | "Invalid verifier state" | State precondition not met in Verifier (e.g. issuing two VP requests sequentially). Accepts an optional `state` keyword argument. |
 | `UnregisteredIssuerError` | "Issuer not found in registry" | Dispatched by Holder if a registry resolution returns no data for a pending issuance. |
 | `IssuerNotFoundInCacheError`| "Issuer not found in local cache" | Attempting to access metadata directly without checking the registry. |
+| `BitstringExhaustedError` | "No available indices in bitstring..." | Raised by Issuer when a bitstring is full and no expired bits can be reclaimed. |
 
 ---
 
@@ -615,7 +616,7 @@ An in-memory manager for `IssuerPublicData` records, used by Holders and Verifie
 | `get_entry(issuer_name)` | `str` | `CacheEntry \| None` | Returns the full `CacheEntry` (including metadata and `obtained_at` timestamp). |
 | `clear()` | — | — | Purges all cached records. |
 | `get_cache_info()` | — | `str` | Returns a beautifully formatted string summary of all cached issuers. |
-| `check_bit_index(issuer, bit_index)` | `str`, `int` | `bool` | High-level revocation check. Retrieves the issuer from the cache and checks the specified bit index. Raises `IssuerNotFoundInCacheError` if the issuer is not present. |
+| `check_bit_index(issuer, bit_index_hex)` | `str`, `str` (hex) | `bool` | High-level revocation check. Retrieves the issuer from the cache and checks the specified hex bit index. Raises `IssuerNotFoundInCacheError` if the issuer is not present. |
 
 ---
 

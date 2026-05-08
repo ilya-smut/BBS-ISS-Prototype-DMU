@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bbs-iss-prototype-dmu"
-version = "0.1.0"
-description = "BBS+ Signatures with Zero-Knowledge Range Proofs Prototype"
+version = "1.0.0"
+description = "Final Year Project. Full SSI credential lifecycle with bbs+ signatures."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -15,7 +15,8 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
-    "pytest"
+    "pytest",
+    "freezegun"
 ]
 
 [tool.setuptools.packages.find]

@@ -34,17 +34,17 @@ class PublicDataCache:
         """
         return self._cache.get(issuer_name)
 
-    def check_bit_index(self, issuer: str, bit_index: int) -> bool:
+    def check_bit_index(self, issuer: str, bit_index_hex: str) -> bool:
         """
         Looks up the issuer's public data in the cache and checks the revocation status
-        for the given bit index.
+        for the given bit index (hex).
         
         Raises IssuerNotFoundInCacheError if the issuer is not present in the cache.
         """
         data = self.get(issuer)
         if data is None:
             raise IssuerNotFoundInCacheError(f"Issuer '{issuer}' not found in local cache")
-        return data.check_revocation_status(bit_index)
+        return data.check_revocation_status(bit_index_hex)
 
     def clear(self):
         """
@@ -70,7 +70,7 @@ class PublicDataCache:
             lines.append(f"Issuer Name:    {issuer_name}")
             lines.append(f"Obtained At:    {entry.obtained_at}")
             lines.append(f"Public Key:     {pk_short}")
-            lines.append(f"Revocation:     {len(data.revocation_bitstring)} bits")
+            lines.append(f"Revocation:     {len(data.revocation_bitstring) * 4} bits")
             lines.append(f"Epoch Size:     {data.validity_window_days} days")
             lines.append(f"Valid For:      {data.valid_until_weeks} weeks")
             lines.append("-" * 50)

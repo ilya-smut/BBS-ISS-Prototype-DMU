@@ -65,7 +65,7 @@ class RegistryInstance:
             
             lines.append(f"Issuer Name:    {name}")
             lines.append(f"Public Key:     {pk_short}")
-            lines.append(f"Revocation:     {len(data.revocation_bitstring)} bits")
+            lines.append(f"Revocation:     {len(data.revocation_bitstring) * 4} bits")
             lines.append(f"Epoch Size:     {data.validity_window_days} days")
             lines.append(f"Valid For:      {data.valid_until_weeks} weeks")
             lines.append("-" * 50)

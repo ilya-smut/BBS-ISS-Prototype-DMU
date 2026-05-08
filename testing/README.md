@@ -14,12 +14,10 @@ python3 testing/demo.py
 
 ---
 
-## Full Protocol Execution Log
+The demonstration is organized into logical phases, each separated by visual headers and descriptive step annotations. It highlights the structured, human-readable reporting implemented to provide transparency into the cryptographic payloads and bitstring status.
 
-The following log represents a complete round-trip of the system. It highlights the structured, human-readable reporting implemented in this session to provide transparency into the cryptographic payloads.
-
-### 1. Authority Initialization & Registry Synchronization
-The demonstration begins with the **Issuer** announcing its authoritative metadata to the **Registry**. Subsequently, both the **Holder** and **Verifier** synchronize their local caches to ensure they have the necessary public keys for verification.
+### PHASE 1: AUTHORITY INITIALIZATION & REGISTRY SYNCHRONIZATION
+The demonstration begins with the **Issuer** announcing its authoritative metadata to the **Registry**. Subsequently, both the **Holder** and **Verifier** synchronize their local caches to ensure they have the necessary public keys and revocation status for verification.
 
 ```text
 === Registering issuer ===
@@ -100,8 +98,10 @@ Count: 1
 === Done ===
 ```
 
-### 2. Multi-Round Blind Issuance
-The Holder requests a new credential. This involves a four-step handshake ensuring the Issuer never sees the Holder's secret attributes (like the `LinkSecret`).
+### PHASE 2: MULTI-ROUND BLIND ISSUANCE
+The Holder requests a new credential. This involves a four-step handshake ensuring the Issuer never sees the Holder's secret attributes (like the `LinkSecret`). 
+
+The Issuer also calculates a fresh **Revocation Index** and **Expiry Epoch** for the credential, which are integrated into the `credentialSubject` and bound by the BBS+ signature.
 
 1. **VCIssuanceRequest**: Initiation.
 2. **FreshnessUpdateResponse**: Issuer provides a 32-byte challenge nonce.
@@ -179,7 +179,7 @@ Verifiable Credential:
 === Done ===
 ```
 
-### 3. Selective Disclosure (ZKP Presentation)
+### PHASE 3: SELECTIVE DISCLOSURE (ZKP PRESENTATION)
 The Holder generates a Verifiable Presentation in response to a Verifier's request. Only the requested attributes are disclosed; others remain cryptographically hidden by the Zero-Knowledge Proof.
 
 ```text
@@ -238,8 +238,8 @@ Disclosed messages:  {'name': 'Ilya', 'id': '123456', 'validUntil': '2026-05-28T
 === Done ===
 ```
 
-### 4. Credential Re-issuance (Renewal)
-The Holder renews a credential near its epoch boundary. This involves presenting a ZKP of the old credential to bind the session and providing a *new* blinded commitment for the renewed credential.
+### PHASE 4: CREDENTIAL RE-ISSUANCE (RENEWAL)
+The Holder renews a credential near its epoch boundary. This involves presenting a ZKP of the old credential to bind the session and providing a *new* blinded commitment for the renewed credential. The Issuer verifies the old credential's validity and revocation status before issuing the renewal.
 
 ```text
 === Requesting reissuance ===

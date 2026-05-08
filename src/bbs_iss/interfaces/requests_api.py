@@ -44,15 +44,16 @@ class IssuerPublicData:
     valid_until_weeks: int
     validity_window_days: int
 
-    def check_revocation_status(self, bit_index: int) -> bool:
+    def check_revocation_status(self, bit_index_hex: str) -> bool:
         """
-        Checks if the credential at the given bit_index is revoked.
+        Checks if the credential at the given bit_index_hex is revoked.
         The revocation_bitstring is expected to be a hex-encoded bitstring.
         Bit 0 is the MSB of the first byte.
         Returns True if revoked (bit is 1), False if valid (bit is 0).
         If the index is out of bounds, it is considered valid (False).
         """
         try:
+            bit_index = int(bit_index_hex, 16)
             bitstring_bytes = bytes.fromhex(self.revocation_bitstring)
         except (ValueError, TypeError):
             return False
@@ -74,7 +75,7 @@ class IssuerPublicData:
         lines.append("="*50)
         lines.append(f"Issuer Name:    {self.issuer_name}")
         lines.append(f"Public Key:     {pk_short}")
-        lines.append(f"Revocation:     {len(self.revocation_bitstring)} bits")
+        lines.append(f"Revocation:     {len(self.revocation_bitstring) * 4} bits")
         lines.append(f"Epoch Size:     {self.validity_window_days} days")
         lines.append(f"Valid For:      {self.valid_until_weeks} weeks")
         lines.append("="*50 + "\n")
@@ -349,8 +350,8 @@ class BlindSignRequest(Request):
         lines.append(f"{'BLIND SIGN REQUEST':^50}")
         lines.append("="*50)
         lines.append(f"Total Messages:  {self.total_messages}")
-        lines.append(f"Commitment:      {self.commitment.hex()[:20]}...")
-        lines.append(f"Proof:           {self.proof.hex()[:20]}...")
+        lines.append(f"Commitment & Proof: {self.commitment.hex()[:20]}...")
+        lines.append("                    (single value mandated by dependency library)")
         lines.append("\nRevealed Attributes:")
         for attr in self.revealed_attributes:
             lines.append(f"  - {attr.key}: {attr.message}")
@@ -513,8 +514,8 @@ class ForwardVpAndCmtRequest(Request):
         lines.append(f"{'FORWARD VP AND COMMITMENT':^50}")
         lines.append("="*50)
         lines.append(f"Total Messages:  {self.total_messages}")
-        lines.append(f"Commitment:      {self.commitment.hex()[:20]}...")
-        lines.append(f"PoK Proof:       {self.proof.hex()[:20]}...")
+        lines.append(f"Commitment & Proof: {self.commitment.hex()[:20]}...")
+        lines.append("                    (single value mandated by dependency library)")
         lines.append("\nVerifiable Presentation:")
         lines.append(self.vp.to_json(indent=4))
         lines.append("\nRevealed Attributes (for re-issuance):")

@@ -20,7 +20,7 @@ def test_successful_issuance():
         # Step 1: Issuance Request
         # Pre-populate cache to simulate already resolved issuer
         issuer_name = "Mock-Issuer"
-        data = api.IssuerPublicData(issuer_name, issuer.public_key, "0"*10, 52, 7)
+        data = api.IssuerPublicData(issuer_name, issuer.public_key, issuer.bitstring_manager.get_revocation_bitstring_hex(), 52, 7)
         holder.public_data_cache.update(issuer_name, data)
         
         init_req = holder.issuance_request(
@@ -59,10 +59,10 @@ def test_concurrent_issuance_separation():
     attr2.append("name", "Bob", api.AttributeType.REVEALED)
     attr2.append("secret", "B", api.AttributeType.HIDDEN)
     
-    # Pre-populate cache for both
-    data1 = api.IssuerPublicData("Issuer1", issuer1.public_key, "0"*10, 52, 7)
+    # Issuers register themselves in registry
+    data1 = api.IssuerPublicData("Issuer1", issuer1.public_key, issuer1.bitstring_manager.get_revocation_bitstring_hex(), 52, 7)
+    data2 = api.IssuerPublicData("Issuer2", issuer2.public_key, issuer2.bitstring_manager.get_revocation_bitstring_hex(), 52, 7)
     holder1.public_data_cache.update("Issuer1", data1)
-    data2 = api.IssuerPublicData("Issuer2", issuer2.public_key, "0"*10, 52, 7)
     holder2.public_data_cache.update("Issuer2", data2)
     
     req1 = holder1.issuance_request("Issuer1", attr1, "cred1")

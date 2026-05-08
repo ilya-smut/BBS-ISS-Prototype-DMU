@@ -4,119 +4,128 @@ from bbs_iss.entities.verifier import VerifierInstance
 from bbs_iss.entities.registry import RegistryInstance
 import bbs_iss.utils.utils as utils
 import bbs_iss.interfaces.requests_api as api
+import json
 
-# 0. Initialize Registry
+# Helper for visual separation
+def print_section(title: str):
+    print("\n" + "="*80)
+    print(f"{title:^80}")
+    print("="*80 + "\n")
+
+def print_step(step: str):
+    print(f"\n>>> {step}")
+    print("-" * 40)
+
+# 0. Initialize Entities
+print_section("SYSTEM INITIALIZATION")
 registry = RegistryInstance()
-
-# 1. Initialize Issuer
 issuer = IssuerInstance()
-issuer.set_issuer_parameters({
-    "issuer": "VeryCredible-University"
-})
+issuer.set_issuer_parameters({"issuer": "VeryCredible-University"})
 issuer.set_epoch_size_days(49)
 issuer.set_re_issuance_window_days(7)
 
-# 2. Initialize Holder
 holder = HolderInstance()
-
-# 3. Initialize Verifier
 verifier = VerifierInstance()
+print("Entities initialized: Registry, Issuer, Holder, Verifier.")
 
-# === REGISTRY FUNCTIONS ===
+# 1. Registry Setup
+print_section("PHASE 1: REGISTRY SETUP")
 
-# 5. Issue registrar details
-print("=== Registering issuer ===")
+print_step("Registering Issuer with Registry")
 reg_req = issuer.register_issuer()
-print("Request 1:\n" + reg_req.get_print_string())
+print("Request (Issuer -> Registry):\n" + reg_req.get_print_string())
 reg_resp = registry.process_request(reg_req)
-print("Response 1:\n" + reg_resp.get_print_string())
+print("Response (Registry -> Issuer):\n" + reg_resp.get_print_string())
 issuer.process_request(reg_resp)
-print("=== Done ===\n")
 
-# 6 Entities parse bulk data from registry
-print("=== Fetching bulk issuer details for verifier ===")
-bulk_req = verifier.fetch_all_issuer_details()
-print("Request 2:\n" + bulk_req.get_print_string())
-bulk_resp = registry.process_request(bulk_req)
-print("Response 2:\n" + bulk_resp.get_print_string())
-verifier.process_request(bulk_resp)
-print("=== Done ===\n")
+print_step("Syncing Verifier with Registry")
+bulk_req_v = verifier.fetch_all_issuer_details()
+bulk_resp_v = registry.process_request(bulk_req_v)
+verifier.process_request(bulk_resp_v)
+print("Verifier local cache updated.")
 
-print("=== Fetching bulk issuer details for holder ===")
-bulk_req = holder.fetch_all_issuer_details()
-print("Request 3:\n" + bulk_req.get_print_string())
-bulk_resp = registry.process_request(bulk_req)
-print("Response 3:\n" + bulk_resp.get_print_string())
-holder.process_request(bulk_resp)
-print("=== Done ===\n")
+print_step("Syncing Holder with Registry")
+bulk_req_h = holder.fetch_all_issuer_details()
+bulk_resp_h = registry.process_request(bulk_req_h)
+holder.process_request(bulk_resp_h)
+print("Holder local cache updated.")
 
-# == Printing execution status ==
-print("Registry info:", registry.get_status_string())
+# 2. Initial Configuration Status
+print_section("CURRENT SYSTEM STATUS")
+print("Issuer Configuration:", issuer.get_configuration())
+print("Registry Status:", registry.get_status_string())
 
-print("Issuer info:", issuer.get_configuration())
+# 3. Credential Issuance
+print_section("PHASE 2: CREDENTIAL ISSUANCE (BBS+ BLIND SIGNING)")
 
-print("Holder info:", holder.public_data_cache.get_cache_info())
-
-print("Verifier info:", verifier.public_data_cache.get_cache_info())
-
-
-### Credential Issuance ###
 attributes = api.IssuanceAttributes()
 attributes.append("name", "Ilya", api.AttributeType.REVEALED)
 attributes.append("id", "123456", api.AttributeType.REVEALED)
 attributes.append("age", "23", api.AttributeType.REVEALED)
 attributes.append("LinkSecret", utils.gen_link_secret(), api.AttributeType.HIDDEN)
 
-print("=== Requesting credential ===")
-iss_req = holder.issuance_request("VeryCredible-University", attributes, "test-cred-1")
-print("Request 4:\n" + iss_req.get_print_string())
+print_step("Step 1: Holder sends Issuance Request & Issuer returns Freshness Nonce")
+iss_req = holder.issuance_request("VeryCredible-University", attributes, "student-card")
+print("Request (Holder -> Issuer):\n" + iss_req.get_print_string())
 freshness = issuer.process_request(iss_req)
-print("Response 4:\n" + freshness.get_print_string())
+print("Response (Issuer -> Holder):\n" + freshness.get_print_string())
+
+print_step("Step 2: Holder generates Blind Commitment & Proof of Knowledge")
 blind_req = holder.process_request(freshness)
-print("Response 5:\n" + blind_req.get_print_string())
+print("Request (Holder -> Issuer):\n" + blind_req.get_print_string())
+
+print_step("Step 3: Issuer Blindly Signs attributes and returns Verifiable Credential")
 forward_vc = issuer.process_request(blind_req)
-print("Response 6:\n" + forward_vc.get_print_string())
+print("Response (Issuer -> Holder):\n" + forward_vc.get_print_string())
 holder.process_request(forward_vc)
-print("=== Done ===\n")
 
-print("Now holder has a credential!")
-print("Holder's credentials:\n", holder.credentials["test-cred-1"][0].to_json())
+print("\n[SUCCESS] Holder has received and stored the credential.")
 
-print("Now we will try to use it")
+# 4. Zero-Knowledge Proof Presentation
+print_section("PHASE 3: ZERO-KNOWLEDGE PROOF PRESENTATION")
 
-
-### Verifier Requests Presentation
-print("=== Requesting presentation ===")
+print_step("Step 1: Verifier sends Presentation Request (Challenge)")
 presentation_req = verifier.presentation_request(["name", "id", "validUntil"])
-print("Request 7:\n" + presentation_req.get_print_string())
+print("Request (Verifier -> Holder):\n" + presentation_req.get_print_string())
 
-presentation_resp = holder.present_credential(presentation_req, "test-cred-1", always_hidden_keys=["age", "LinkSecret"])
-print("Response 7:\n" + presentation_resp.get_print_string())
+print_step("Step 2: Holder generates ZKP (selective disclosure + hidden LinkSecret)")
+presentation_resp = holder.present_credential(presentation_req, "student-card", always_hidden_keys=["age", "LinkSecret"])
+print("Response (Holder -> Verifier):\n" + presentation_resp.get_print_string())
 
+print_step("Step 3: Verifier validates the Proof and checks Revocation Status")
 valid, disclosed_messages, vp = verifier.process_request(presentation_resp)
 
-print("Valid: ", valid)
-print("Disclosed messages: ", disclosed_messages)
-print("Verifiable Presentation: ", vp.to_json())
-print("=== Done ===\n")
+print("\n--- VERIFICATION RESULT ---")
+print(f"Cryptographic Proof Valid: {valid}")
+print(f"Disclosed Attributes:      {disclosed_messages}")
+print("---------------------------\n")
 
+# 5. Credential Re-issuance (Freshness Update)
+print_section("PHASE 4: CREDENTIAL RE-ISSUANCE (FRESHNESS UPDATE)")
 
-
-### Testing reissuance ###
-print("Changing issuer parameters - reissuance window")
+print(">>> Adjusting Issuer Window to trigger re-issuance eligibility...")
 issuer.set_re_issuance_window_days(52)
-print("Issuer info:", issuer.get_configuration())
+print(issuer.get_configuration())
 
-print("=== Requesting reissuance ===")
-reiss_req = holder.re_issuance_request("test-cred-1", always_hidden_keys=["LinkSecret"])
-print("Request 8:\n" + reiss_req.get_print_string())
+print_step("Step 1: Holder requests Freshness Update for re-issuance")
+reiss_req = holder.re_issuance_request("student-card", always_hidden_keys=["LinkSecret"])
+print("Request (Holder -> Issuer):\n" + reiss_req.get_print_string())
 freshness_reiss = issuer.process_request(reiss_req)
-print("Response 8:\n" + freshness_reiss.get_print_string())
-blind_req_reiss = holder.process_request(freshness_reiss)
-print("Response 9:\n" + blind_req_reiss.get_print_string())
-forward_vc_reiss = issuer.process_request(blind_req_reiss)
-print("Response 10:\n" + forward_vc_reiss.get_print_string())
-holder.process_request(forward_vc_reiss)
-print("=== Done ===\n")
+print("Response (Issuer -> Holder):\n" + freshness_reiss.get_print_string())
 
-print("Holder's credentials:\n", holder.credentials["test-cred-1"][0].to_json())
+print_step("Step 2: Holder proves ownership of old VC & provides new Commitment")
+blind_req_reiss = holder.process_request(freshness_reiss)
+print("Request (Holder -> Issuer):\n" + blind_req_reiss.get_print_string())
+
+print_step("Step 3: Issuer verifies proof and issues Updated VC")
+forward_vc_reiss = issuer.process_request(blind_req_reiss)
+print("Response (Issuer -> Holder):\n" + forward_vc_reiss.get_print_string())
+holder.process_request(forward_vc_reiss)
+
+print("\n[SUCCESS] Credential successfully re-issued with updated validity.")
+print_section("FINAL HOLDER STATE")
+import json
+print(json.dumps(holder.credentials["student-card"][0].credential_subject, indent=4))
+print("\n" + "="*80)
+print(f"{'DEMO COMPLETED SUCCESSFULLY':^80}")
+print("="*80 + "\n")

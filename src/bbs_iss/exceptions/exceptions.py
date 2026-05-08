@@ -80,3 +80,8 @@ class IssuerNotFoundInCacheError(Exception):
     def __init__(self, message="Issuer not found in local cache"):
         self.message = message
         super().__init__(self.message)
+
+class BitstringExhaustedError(Exception):
+    def __init__(self, message="No available indices in bitstring. Please extend bitstring."):
+        self.message = message
+        super().__init__(self.message)
