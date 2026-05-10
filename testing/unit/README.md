@@ -133,6 +133,9 @@ Validates the secure re-issuance protocol:
 
 *   **`test_reissued_credential_integrity`**: Confirms that instantaneous re-issuance maintains the exact same epoch boundary and `metaHash`.
 
+### `test_reissuance_exhaustion.py` — Capacity Edge Cases
+*   **`test_reissuance_fails_on_bitstring_exhaustion`**: Specifically verifies that re-issuance fails with `BITSTRING_EXHAUSTED` if no new bits are available, even though an old bit is slated for revocation.
+
 ### `test_registry_protocol.py` — Cross-Entity Synchronization
 *   **`test_issuer_registration_flow`**: Validates the full Issuer ↔ Registry handshake for new registrations.
 *   **`test_revocation_cycle.py` — End-to-End Revocation & Capacity Management**:
