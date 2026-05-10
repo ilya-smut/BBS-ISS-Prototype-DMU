@@ -1,8 +1,9 @@
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 from bbs_iss.utils.utils import gen_nonce
-from bbs_iss.interfaces.credential import VerifiablePresentation
-from bbs_iss.exceptions.exceptions import VerifierStateError, VerifierNotInInteraction
+from datetime import datetime, timezone
+from bbs_iss.interfaces.credential import VerifiablePresentation, VerifiableCredential
+from bbs_iss.exceptions.exceptions import VerifierStateError, VerifierNotInInteraction, MissingAttributeError
 from bbs_iss.utils.cache import PublicDataCache
 
 class VerifierInstance:
@@ -37,6 +38,15 @@ class VerifierInstance:
     def __init__(self):
         self.state = self.State()
         self.public_data_cache = PublicDataCache()
+
+    @property
+    def available(self) -> bool:
+        """Returns True if the Verifier is not currently in an active interaction."""
+        return self.state.available
+
+    def reset(self):
+        """Manually resets the Verifier state, cancelling any active interaction."""
+        self.state.end_interaction()
 
     def presentation_request(self, requested_attributes: list[str]):
         if not self.state.available:
@@ -122,6 +132,73 @@ class VerifierInstance:
         """
         self.state.start_registry_interaction(api.RequestType.BULK_ISSUER_DETAILS_REQUEST)
         return api.BulkGetIssuerDetailsRequest()
+
+    def check_validity(
+        self, 
+        vp: VerifiablePresentation, 
+        current_date: datetime = None, 
+        with_bit_index: bool = False
+    ) -> bool:
+        """
+        Performs high-level validity checks on a Verifiable Presentation.
+        
+        1. Expiration check: Verifies that 'validUntil' exists and is in the future.
+        2. Revocation check (Optional): Verifies that the credential's bit index 
+           is not marked as revoked in the issuer's registered bitstring.
+
+        Parameters
+        ----------
+        vp : VerifiablePresentation
+            The presentation to check.
+        current_date : datetime, optional
+            The date to check against. Defaults to UTC now.
+        with_bit_index : bool, optional
+            If True, also performs a revocation status check via the bitstring.
+            Requires 'revocationMaterial' to be disclosed.
+
+        Returns
+        -------
+        bool
+            True if all enabled checks pass, False otherwise.
+
+        Raises
+        ------
+        MissingAttributeError
+            If 'validUntil' or 'revocationMaterial' (when requested) are not present.
+        IssuerNotFoundInCacheError
+            If with_bit_index=True and the issuer's public data is not in cache.
+        """
+        revealed = vp.verifiableCredential["credentialSubject"]
+        
+        # ── 1. Expiration Check ──────────────────────────────────────
+        if VerifiableCredential.VALID_UNTIL_KEY not in revealed:
+            raise MissingAttributeError(f"Attribute '{VerifiableCredential.VALID_UNTIL_KEY}' not found in presentation")
+            
+        expiry_str = revealed[VerifiableCredential.VALID_UNTIL_KEY]
+        try:
+            # Handle 'Z' suffix for UTC
+            expiry_date = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
+        except ValueError:
+            return False # Invalid date format
+            
+        check_date = current_date or datetime.now(timezone.utc)
+        if check_date > expiry_date:
+            return False
+
+        # ── 2. Revocation Check ──────────────────────────────────────
+        if with_bit_index:
+            if VerifiableCredential.REVOCATION_MATERIAL_KEY not in revealed:
+                raise MissingAttributeError(f"Attribute '{VerifiableCredential.REVOCATION_MATERIAL_KEY}' not found in presentation")
+                
+            bit_index = revealed[VerifiableCredential.REVOCATION_MATERIAL_KEY]
+            issuer_name = vp.verifiableCredential["issuer"]
+            
+            # This will raise IssuerNotFoundInCacheError if not present
+            is_revoked = self.public_data_cache.check_bit_index(issuer_name, bit_index)
+            if is_revoked:
+                return False
+
+        return True
         
     def verify_vp(self, vp: VerifiablePresentation, pub_key: api.PublicKeyBLS) -> tuple[bool, dict[str, str] | None, VerifiablePresentation]:
         """

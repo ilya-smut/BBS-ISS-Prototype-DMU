@@ -72,7 +72,13 @@ Tests focused on the internal state machines and behavioral guardrails of the pr
 *   **`test_epoch_based_reuse`**: Validates the automatic reclamation of capacity for indices whose `expiry_epoch` has passed relative to the `current_epoch`.
 *   **`test_bitstring_expansion`**: Verifies dynamic resizing of the bitstring while preserving existing revocation states.
 
+### `test_verifier.py` — Verifier State & Validity Checks
 *   **`test_verifier_resets_after_verification`**: Ensures the Verifier returns to an idle state after a successful interaction.
+*   **`TestVerifierValidityCheck`**:
+    *   `test_check_validity_success`: Confirms that valid credentials pass both expiration and revocation checks.
+    *   `test_check_validity_expired`: Verifies that credentials past their `validUntil` date are rejected.
+    *   `test_check_validity_revoked`: Confirms that the Verifier correctly identifies revoked credentials via bitstring lookup.
+    *   `test_check_validity_missing_attributes`: Ensures `MissingAttributeError` is raised if policy-required fields are not disclosed.
 
 ### `test_registry.py` — Registry Dispatch & Data Persistence
 *   **`test_registry_registration_and_get`**: Verifies the core registration and retrieval transactional logic.

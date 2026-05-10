@@ -148,6 +148,15 @@ class IssuerInstance:
         self.issuer_parameters = None
         self.baseline_date = None
         self.bitstring_manager = BitstringManager()
+        
+    @property
+    def available(self) -> bool:
+        """Returns True if the Issuer is not currently in an active interaction."""
+        return self.state.available
+
+    def reset(self):
+        """Manually resets the Issuer state, cancelling any active interaction."""
+        self.state.end_interaction()
 
     def _get_epoch_params(self):
         days = self.epoch_size_days if self.epoch_size_days is not None else self.DEFAULT_EPOCH_SIZE_DAYS

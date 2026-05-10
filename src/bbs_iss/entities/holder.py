@@ -77,6 +77,15 @@ class HolderInstance:
         self.credentials = {}
         self.public_data_cache = PublicDataCache()
     
+    @property
+    def available(self) -> bool:
+        """Returns True if the Holder is not currently in an active interaction."""
+        return not self.state.awaiting
+
+    def reset(self):
+        """Manually resets the Holder state, cancelling any active interaction."""
+        self.state.end_interaction()
+    
 
     def process_request(self, request: api.Request):
         if not self.state.awaiting:

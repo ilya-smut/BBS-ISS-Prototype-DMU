@@ -8,6 +8,7 @@ A working proof-of-concept Python prototype for a **Privacy-Preserving Verifiabl
 - [Installation](#installation)
 - [Project Structure](#project-structure)
 - [Protocol Overview](#protocol-overview)
+- [Detailed Protocol Flows (Sequence Diagrams)](PROTOCOL_FLOWS.md)
 - [Module Reference](#module-reference)
   - [Entities](#entities)
     - [IssuerInstance](#issuerinstance)
@@ -286,6 +287,8 @@ Tracks whether the Issuer is currently processing a request.
 | `set_re_issuance_window_days(days)` | `int` | — | Sets the allowed time window before expiration when re-issuance is permitted. |
 | `set_issuer_parameters(params)` | `dict` | — | Sets arbitrary parameters like the issuer's name. |
 | `get_configuration()` | — | `str` | Returns a beautifully formatted status string detailing the issuer's current configuration, including real-time bitstring utilization metrics (Total, Available, Revoked indices, and upcoming epoch releases). |
+| `available` *(property)* | — | `bool` | Returns `True` if the Issuer is not currently in an active interaction. |
+| `reset()` | — | — | Manually resets the Issuer state, cancelling any active interaction. |
 | `process_request(request)` | `Request` | `FreshnessUpdateResponse \| ForwardVCResponse \| bool` | Main dispatch method. Routes `ISSUANCE` and `RE_ISSUANCE` requests to `freshness_response()`, `BLIND_SIGN` requests to `issue_vc_blind()`, `FORWARD_VP_AND_CMT` to `re_issue_vc()`, and registry responses to internal state handlers. Returns `True` if a registry interaction succeeded. |
 | `register_issuer(initial_bitstring)` | `str` | `RegisterIssuerDetailsRequest` | Initiates the registration of the issuer's public key and configuration with the Registry. |
 | `update_issuer_details(new_bitstring)` | `str` | `UpdateIssuerDetailsRequest` | Updates the registered metadata (e.g., rotating the revocation bitstring). |
@@ -333,6 +336,8 @@ Tracks active interaction state including the Issuer's public key, attribute set
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__()` | — | — | Initializes empty state, a `credentials` dictionary, and a `public_data_cache`. |
+| `available` *(property)* | — | `bool` | Returns `True` if the Holder is not currently in an active interaction. |
+| `reset()` | — | — | Manually resets the Holder state, cancelling any active interaction. |
 | `process_request(request)` | `Request` | `BlindSignRequest \| ForwardVpAndCmtRequest \| IssuerPublicData \| list[IssuerPublicData] \| VCIssuanceRequest \| bool` | Dispatch method. Routes `FRESHNESS` responses, `FORWARD_VC` storage, and `ISSUER_DETAILS` responses. Handles **Asynchronous Resumption**: if a response completes a pending issuer resolution, it automatically proceeds to the next step of the suspended issuance flow. |
 | `issuance_request(issuer_name, attributes, cred_name)` | `str`, `IssuanceAttributes`, `str` | `VCIssuanceRequest \| GetIssuerDetailsRequest` | Cache-first lookup for the issuer. If found, returns `VCIssuanceRequest` immediately. If not found, stores the request parameters in a pending state and returns `GetIssuerDetailsRequest` to trigger resolution. |
 | `re_issuance_request(vc_name, always_hidden_keys=None)` | `str`, `list[str]` | `Request` | Prepares attributes from the existing credential for re-issuance, retaining those specified in `always_hidden_keys` as blinded. |
@@ -376,6 +381,9 @@ Tracks whether the Verifier is currently waiting for a presentation.
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `__init__()` | — | — | Initializes empty state and a `public_data_cache`. |
+| `available` *(property)* | — | `bool` | Returns `True` if the Verifier is not currently in an active interaction. |
+| `reset()` | — | — | Manually resets the Verifier state, cancelling any active interaction. |
+| `check_validity(vp, current_date=None, with_bit_index=False)` | `VerifiablePresentation`, `datetime`, `bool` | `bool` | Performs high-level validity checks. Always checks `validUntil` expiration. If `with_bit_index` is `True`, it also performs a revocation check against the cached issuer bitstring. Raises `MissingAttributeError` if required fields are not disclosed. |
 | `presentation_request(requested_attributes)` | `list[str]` | `VPRequest` | Generates a 32-byte challenge nonce via `gen_nonce()`, saves it to state along with the required attributes, and returns a `VPRequest`. Raises `VerifierStateError` if already busy. |
 | `process_request(request)` | `Request` | `tuple \| IssuerPublicData \| list[IssuerPublicData] \| GetIssuerDetailsRequest` | Main dispatch method. Routes `FORWARD_VP` responses to `verify_vp()` and registry responses to the `PublicDataCache`. Implements **Asynchronous Resolution**: if `FORWARD_VP` targets an unknown issuer, it parks the VP in `queued_response` and returns a `GetIssuerDetailsRequest`. It automatically resumes verification once the registry response is processed. |
 | `verify_vp(vp, pub_key)` | `VerifiablePresentation`, `PublicKeyBLS` | `tuple[bool, dict \| None, VP]` | Two-phase verification. Phase 1 checks Attribute Completeness against the original `requested_attributes`. Phase 2 reconstructs the bound nonce and runs BBS+ `verify_proof()`. Returns `(is_valid, revealed_attributes, vp_object)`. |
@@ -607,6 +615,7 @@ All exceptions use the pattern `def __init__(self, message="<default>")` unless 
 | `UnregisteredIssuerError` | "Issuer not found in registry" | Dispatched by Holder if a registry resolution returns no data for a pending issuance. |
 | `IssuerNotFoundInCacheError`| "Issuer not found in local cache" | Attempting to access metadata directly without checking the registry. |
 | `BitstringExhaustedError` | "No available indices in bitstring..." | Raised by Issuer when a bitstring is full and no expired bits can be reclaimed. |
+| `MissingAttributeError` | "Required attribute missing" | Raised by Verifier if `validUntil` or `revocationMaterial` are not disclosed. |
 
 ---
 
@@ -718,8 +727,12 @@ vp_request = verifier.presentation_request(requested_attributes=["degree"])
 vp_response = holder.present_credential(vp_request, "degree-cred", always_hidden_keys=["secret"])
 
 # Verification against cached authoritative key
-is_vp_valid, revealed_attrs, _ = verifier.process_request(vp_response)
+is_vp_valid, revealed_attrs, vp = verifier.process_request(vp_response)
 print(f"ZKP Validation: {is_vp_valid} | Data: {revealed_attrs}")
+
+# High-level validity check (expiration + optional revocation)
+is_valid_at_policy_level = verifier.check_validity(vp, with_bit_index=True)
+print(f"Policy-Level Validity (Not expired/revoked): {is_valid_at_policy_level}")
 
 # ─── 4. RE-ISSUANCE ──────────────────────────────────────────────────
 # Holder initiated renewal

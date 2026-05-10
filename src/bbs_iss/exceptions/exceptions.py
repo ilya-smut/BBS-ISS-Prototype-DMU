@@ -85,3 +85,9 @@ class BitstringExhaustedError(Exception):
     def __init__(self, message="No available indices in bitstring. Please extend bitstring."):
         self.message = message
         super().__init__(self.message)
+
+class MissingAttributeError(Exception):
+    """Raised when a required attribute is missing from a presentation."""
+    def __init__(self, message="Required attribute missing"):
+        self.message = message
+        super().__init__(self.message)
