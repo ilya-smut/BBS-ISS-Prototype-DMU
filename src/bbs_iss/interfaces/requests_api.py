@@ -229,6 +229,14 @@ class IssuanceAttributes:
         return attributes
 
 
+class ErrorType(Enum):
+    ISSUER_UNAVAILABLE = 1
+    VERIFICATION_FAILED = 2
+    BITSTRING_EXHAUSTED = 3
+    INVALID_REQUEST = 4
+    INVALID_STATE = 5
+
+
 class RequestType(Enum):
     ISSUANCE = 1
     RE_ISSUANCE = 2
@@ -275,6 +283,7 @@ class Request:
             RequestType.ISSUER_DETAILS_RESPONSE: IssuerDetailsResponse,
             RequestType.BULK_ISSUER_DETAILS_REQUEST: BulkGetIssuerDetailsRequest,
             RequestType.BULK_ISSUER_DETAILS_RESPONSE: BulkIssuerDetailsResponse,
+            RequestType.ERROR: ErrorResponse,
         }
         
         target_class = type_to_class.get(req_type)
@@ -297,6 +306,41 @@ class Request:
         lines.append("="*50)
         lines.append(f"Type: {self.request_type.name}")
         lines.append("="*50 + "\n")
+        return "\n".join(lines)
+
+
+class ErrorResponse(Request):
+    def __init__(self, original_request_type: RequestType, error_type: ErrorType, message: str = ""):
+        super().__init__(RequestType.ERROR)
+        self.original_request_type = original_request_type
+        self.error_type = error_type
+        self.message = message
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "request_type": self.request_type.value,
+            "original_request_type": self.original_request_type.value,
+            "error_type": self.error_type.value,
+            "message": self.message
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> ErrorResponse:
+        return cls(
+            original_request_type=RequestType(data["original_request_type"]),
+            error_type=ErrorType(data["error_type"]),
+            message=data.get("message", "")
+        )
+
+    def get_print_string(self) -> str:
+        lines = ["\n" + "!"*50]
+        lines.append(f"{'ERROR RESPONSE':^50}")
+        lines.append("!"*50)
+        lines.append(f"Original Request: {self.original_request_type.name}")
+        lines.append(f"Error Type:       {self.error_type.name}")
+        if self.message:
+            lines.append(f"Message:          {self.message}")
+        lines.append("!"*50 + "\n")
         return "\n".join(lines)
 
 

@@ -167,11 +167,13 @@ def test_bitstring_exhaustion_and_reuse():
     blind = holder.process_request(freshness)
     
     # But signing should fail due to exhaustion
-    with pytest.raises(BitstringExhaustedError):
-        issuer.process_request(blind)
+    error_resp = issuer.process_request(blind)
+    assert isinstance(error_resp, api.ErrorResponse)
+    assert error_resp.error_type == api.ErrorType.BITSTRING_EXHAUSTED
     
-    # Manually reset holder state because the issuer failed but the holder is still waiting
-    holder.state.end_interaction()
+    # Holder processes the error and resets state automatically
+    holder.process_request(error_resp)
+    assert holder.state.awaiting is False
         
     # 5) use mock time to move the epoch (move forward by 8 days)
     # Original 'now' was Jan 1. Next epoch starts Jan 8.

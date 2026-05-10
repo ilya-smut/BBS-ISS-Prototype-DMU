@@ -28,8 +28,10 @@ def test_issuer_rejects_overlapping_sessions():
     issuer.process_request(req1)
     
     # Second request should fail
-    with pytest.raises(IssuerNotAvailable):
-        issuer.process_request(req2)
+    error_resp = issuer.process_request(req2)
+    assert isinstance(error_resp, api.ErrorResponse)
+    assert error_resp.error_type == api.ErrorType.ISSUER_UNAVAILABLE
+    assert error_resp.original_request_type == api.RequestType.ISSUANCE
 
 def test_issuer_rejects_replayed_proof():
     """Assert ProofValidityError is raised when a valid proof from a different session (different nonce) is replayed."""
@@ -66,8 +68,10 @@ def test_issuer_rejects_replayed_proof():
     invalid_blind_req = copy.copy(valid_blind_req1)
     invalid_blind_req.proof = valid_blind_req2.proof
     
-    with pytest.raises(ProofValidityError):
-        issuer.process_request(invalid_blind_req)
+    error_resp = issuer.process_request(invalid_blind_req)
+    assert isinstance(error_resp, api.ErrorResponse)
+    assert error_resp.error_type == api.ErrorType.VERIFICATION_FAILED
+    assert error_resp.original_request_type == api.RequestType.BLIND_SIGN
 
 @patch('bbs_iss.entities.issuer.datetime')
 def test_epoch_boundary_initial_issuance_outside_window(mock_datetime):

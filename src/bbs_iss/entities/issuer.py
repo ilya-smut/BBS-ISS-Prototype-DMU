@@ -221,52 +221,63 @@ class IssuerInstance:
         return self.bitstring_manager.get_status_string(curr, next_epoch_date)
 
     def process_request(self, request: api.Request):
-        if request.request_type == api.RequestType.ISSUANCE:
-            if not self.state.available:
-                raise IssuerNotAvailable()
-            return self.freshness_response(api.RequestType.ISSUANCE)
-        elif request.request_type == api.RequestType.RE_ISSUANCE:
-            if not self.state.available:
-                raise IssuerNotAvailable()
-            return self.freshness_response(api.RequestType.RE_ISSUANCE)
-        elif request.request_type == api.RequestType.BLIND_SIGN:
-            if self.state.type != api.RequestType.ISSUANCE:
-                raise IssuerStateError("Invalid state for blind sign", state=self.state)
-            try:
+        try:
+            if request.request_type == api.RequestType.ISSUANCE:
+                if not self.state.available:
+                    raise IssuerNotAvailable()
+                return self.freshness_response(api.RequestType.ISSUANCE)
+            elif request.request_type == api.RequestType.RE_ISSUANCE:
+                if not self.state.available:
+                    raise IssuerNotAvailable()
+                return self.freshness_response(api.RequestType.RE_ISSUANCE)
+            elif request.request_type == api.RequestType.BLIND_SIGN:
+                if self.state.type != api.RequestType.ISSUANCE:
+                    raise IssuerStateError("Invalid state for blind sign", state=self.state)
                 return self.issue_vc_blind(request)
-            except Exception as e:
-                self.state.end_interaction()
-                raise e
-        elif request.request_type == api.RequestType.FORWARD_VP_AND_CMT:
-            if not self.state.re_issuance_ready:
-                raise IssuerStateError("Invalid state for re-issuance", state=self.state)
-            try:
+            elif request.request_type == api.RequestType.FORWARD_VP_AND_CMT:
+                if not self.state.re_issuance_ready:
+                    raise IssuerStateError("Invalid state for re-issuance", state=self.state)
                 return self.re_issue_vc(request)
-            except Exception as e:
+            elif request.request_type == api.RequestType.ISSUER_DETAILS_RESPONSE:
+                if not self.state.registry_interaction_ready:
+                    self.state.end_interaction()
+                    raise IssuerStateError("Invalid state for receiving issuer details response", state=self.state)
+                    
+                success = request.issuer_data == self.state.pending_data
                 self.state.end_interaction()
-                raise e
-        elif request.request_type == api.RequestType.ISSUER_DETAILS_RESPONSE:
-            if not self.state.registry_interaction_ready:
-                self.state.end_interaction()
-                raise IssuerStateError("Invalid state for receiving issuer details response", state=self.state)
-                
-            success = request.issuer_data == self.state.pending_data
+                return success
+            else:
+                raise ValueError(f"Invalid request type: {request.request_type}")
+        except IssuerNotAvailable as e:
+            return api.ErrorResponse(request.request_type, api.ErrorType.ISSUER_UNAVAILABLE, message=str(e))
+        except ProofValidityError as e:
             self.state.end_interaction()
-            return success
-        else:
+            return api.ErrorResponse(request.request_type, api.ErrorType.VERIFICATION_FAILED, message=str(e))
+        except BitstringExhaustedError as e:
             self.state.end_interaction()
-            raise ValueError(f"Invalid request type: {request.request_type}")
+            return api.ErrorResponse(request.request_type, api.ErrorType.BITSTRING_EXHAUSTED, message=str(e))
+        except IssuerStateError as e:
+            self.state.end_interaction()
+            return api.ErrorResponse(request.request_type, api.ErrorType.INVALID_STATE, message=str(e))
+        except Exception as e:
+            self.state.end_interaction()
+            return api.ErrorResponse(request.request_type, api.ErrorType.INVALID_REQUEST, message=str(e))
 
     def blind_sign(self, request: api.BlindSignRequest):
-        ver_commitment_req = bbs.VerifyBlindedCommitmentRequest(
-            public_key=api.SigningPublicKey.derive_signing_public_key(self.public_key, request.total_messages).key,
-            proof = request.proof,
-            blinded_indices=request.messages_with_blinded_indices,
-            nonce = self.state.freshness
-        )
-        if bbs.verify_blinded_commitment(ver_commitment_req) != bbs.SignatureProofStatus.success:
+        try:
+            ver_commitment_req = bbs.VerifyBlindedCommitmentRequest(
+                public_key=api.SigningPublicKey.derive_signing_public_key(self.public_key, request.total_messages).key,
+                proof = request.proof,
+                blinded_indices=request.messages_with_blinded_indices,
+                nonce = self.state.freshness
+            )
+            if bbs.verify_blinded_commitment(ver_commitment_req) != bbs.SignatureProofStatus.success:
+                raise ProofValidityError("Invalid proof of commitment to hidden attributes")
+        except Exception as e:
+            if isinstance(e, ProofValidityError):
+                raise e
             self.state.end_interaction()
-            raise ProofValidityError("Invalid proof of commitment to hidden attributes")
+            raise ProofValidityError(str(e))
 
         ursa_Blind_sign_request = bbs.BlindSignRequest(
             secret_key=self._private_key_pair,
@@ -319,14 +330,19 @@ class IssuerInstance:
         
     def re_issue_vc(self, request: api.ForwardVpAndCmtRequest):
         # 1. Verify VP
-        verification_request = request.vp.prepare_verification_request(
-            pub_key=self.public_key,
-            nonce=self.state.freshness,
-            commitment=request.commitment
-        )
-        if not bbs.verify_proof(verification_request):
+        try:
+            verification_request = request.vp.prepare_verification_request(
+                pub_key=self.public_key,
+                nonce=self.state.freshness,
+                commitment=request.commitment
+            )
+            if not bbs.verify_proof(verification_request):
+                raise ProofValidityError("Invalid VP proof")
+        except Exception as e:
+            if isinstance(e, ProofValidityError):
+                raise e
             self.state.end_interaction()
-            raise ProofValidityError("Invalid VP proof")
+            raise ProofValidityError(str(e))
 
         disclosed = request.vp.verifiableCredential["credentialSubject"]
 
@@ -366,15 +382,20 @@ class IssuerInstance:
             raise ValueError("Credential is not within the re-issuance window")
 
         # 4. Verify PoK
-        ver_commitment_req = bbs.VerifyBlindedCommitmentRequest(
-            public_key=api.SigningPublicKey.derive_signing_public_key(self.public_key, request.total_messages).key,
-            proof=request.proof,
-            blinded_indices=request.messages_with_blinded_indices,
-            nonce=self.state.freshness
-        )
-        if bbs.verify_blinded_commitment(ver_commitment_req) != bbs.SignatureProofStatus.success:
+        try:
+            ver_commitment_req = bbs.VerifyBlindedCommitmentRequest(
+                public_key=api.SigningPublicKey.derive_signing_public_key(self.public_key, request.total_messages).key,
+                proof=request.proof,
+                blinded_indices=request.messages_with_blinded_indices,
+                nonce=self.state.freshness
+            )
+            if bbs.verify_blinded_commitment(ver_commitment_req) != bbs.SignatureProofStatus.success:
+                raise ProofValidityError("Invalid proof of commitment to hidden attributes")
+        except Exception as e:
+            if isinstance(e, ProofValidityError):
+                raise e
             self.state.end_interaction()
-            raise ProofValidityError("Invalid proof of commitment to hidden attributes")
+            raise ProofValidityError(str(e))
 
         # 5. Revocation
         if VerifiableCredential.REVOCATION_MATERIAL_KEY in disclosed:

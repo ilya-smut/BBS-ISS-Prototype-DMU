@@ -99,6 +99,9 @@ class VerifierInstance:
                 self.public_data_cache.update(data.issuer_name, data)
             self.state.end_interaction()
             return request.issuers_data
+        elif request.request_type == api.RequestType.ERROR:
+            self.state.end_interaction()
+            return request
         else:
             raise ValueError("Invalid request type")
             

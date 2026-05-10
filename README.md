@@ -17,6 +17,7 @@ A working proof-of-concept Python prototype for a **Privacy-Preserving Verifiabl
   - [Interfaces](#interfaces)
     - [requests\_api](#requests_api)
     - [credential](#credential)
+  - [Protocol Error Handling](#protocol-error-handling)
   - [Exceptions](#exceptions)
   - [Utils](#utils)
 - [Usage Example](#usage-example)
@@ -144,9 +145,25 @@ Entity (Holder/Verifier)                         Registry
   └── resume suspended interaction               │
 ```
 
-**Bulk Synchronization:** To facilitate efficient bootstrapping, entities can also perform a `BulkGetIssuerDetailsRequest`, which triggers the Registry to return a complete list of all registered issuers in a single interaction.
-
 **Issuer Registration:** Issuers proactively announce their metadata (Public Key, Epoch configuration, Revocation status bitstring) to the Registry via `RegisterIssuerDetailsRequest`.
+
+---
+
+### Protocol Error Handling
+
+To ensure protocol stability and prevent entities from hanging in "Waiting" states during failures, the prototype implements an explicit **Error Response** mechanism. Instead of relying solely on unhandled runtime exceptions, the `IssuerInstance` catches internal errors (e.g., bitstring exhaustion, proof invalidity, or state violations) and returns a structured `ErrorResponse`.
+
+#### Error Categories
+
+| Error Type | Description | Trigger |
+|------------|-------------|---------|
+| `ISSUER_UNAVAILABLE` | Issuer is busy processing another request | Concurrent `ISSUANCE` or `RE_ISSUANCE` starts |
+| `VERIFICATION_FAILED` | Cryptographic proof or signature validation failed | Tampered PoK, invalid VP, or broken commitments |
+| `BITSTRING_EXHAUSTED` | No available indices in the revocation bitstring | Issuer capacity exceeded and no expired bits reclaimable |
+| `INVALID_REQUEST` | The request payload contains invalid data | Attribute mismatches, missing validity fields, or malformed data |
+| `INVALID_STATE` | The request arrived in an unexpected protocol state | Out-of-order messages (e.g., `BLIND_SIGN` without `ISSUANCE`) |
+
+When an `ErrorResponse` is received, both the Holder and Verifier automatically call `end_interaction()` to reset their internal state machines, ensuring they are immediately available for subsequent interactions.
 
 ---
 
@@ -478,6 +495,7 @@ All request and response objects inherit from `Request` and carry a `request_typ
 | `FreshnessUpdateResponse` | `FRESHNESS` | `nonce: bytes` | Carries the Issuer's freshness nonce. |
 | `BlindSignRequest` | `BLIND_SIGN` | `revealed_attributes`, `commitment`, `total_messages`, `proof`, `messages_with_blinded_indices` | Constructed directly from an `IssuanceAttributes` instance. Carries all data the Issuer needs to verify the commitment and compute a blind signature. |
 | `ForwardVCResponse` | `FORWARD_VC` | `vc: VerifiableCredential` | Carries the issued credential back to the Holder. |
+| `ErrorResponse` | `ERROR` | `original_request_type`, `error_type`, `message` | Standardized failure message returned by the Issuer to prevent protocol hangs. |
 | `ForwardVpAndCmtRequest` | `FORWARD_VP_AND_CMT` | `vp`, `commitment`, `proof`, `revealed_attributes` | Used during re-issuance to present an existing credential alongside a blinded commitment for the new one. |
 | `RegisterIssuerDetailsRequest`| `REGISTER_ISSUER_DETAILS` | `issuer_name`, `issuer_data` | Used by Issuers to announce their metadata to the Registry. |
 | `UpdateIssuerDetailsRequest`  | `UPDATE_ISSUER_DETAILS` | `issuer_name`, `issuer_data` | Used by Issuers to update their registered metadata. |

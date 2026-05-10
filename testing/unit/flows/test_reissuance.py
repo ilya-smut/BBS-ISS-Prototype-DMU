@@ -103,13 +103,14 @@ class TestReissuanceFlow:
         )
         freshness_0 = issuer.process_request(init_req_0)
         
-        # If holder 1 tries to start a request while holder 0 is interacting, it should raise Exception (IssuerNotAvailable)
+        # If holder 1 tries to start a request while holder 0 is interacting, it should return ErrorResponse (ISSUER_UNAVAILABLE)
         init_req_1 = holders[1].re_issuance_request(
             vc_name=cred_names[1],
             always_hidden_keys=["LinkSecret"]
         )
-        with pytest.raises(Exception):
-            issuer.process_request(init_req_1)
+        error_resp = issuer.process_request(init_req_1)
+        assert isinstance(error_resp, api.ErrorResponse)
+        assert error_resp.error_type == api.ErrorType.ISSUER_UNAVAILABLE
             
         re_req_0 = holders[0].process_request(freshness_0)
         new_vc_0 = issuer.process_request(re_req_0)
@@ -141,8 +142,9 @@ class TestReissuanceFlow:
         re_issuance_req = holder.process_request(wrong_freshness_resp)
         
         # The issuer checks against freshness_resp.nonce
-        with pytest.raises(ProofValidityError):
-            issuer.process_request(re_issuance_req)
+        error_resp = issuer.process_request(re_issuance_req)
+        assert isinstance(error_resp, api.ErrorResponse)
+        assert error_resp.error_type == api.ErrorType.VERIFICATION_FAILED
 
 
     def test_replay_different_commitment(self, issued_credential_and_entities):
@@ -183,8 +185,9 @@ class TestReissuanceFlow:
         )
         
         # 4. Send malicious request to issuer
-        with pytest.raises(ProofValidityError):
-            issuer.process_request(malicious_req)
+        error_resp = issuer.process_request(malicious_req)
+        assert isinstance(error_resp, api.ErrorResponse)
+        assert error_resp.error_type == api.ErrorType.VERIFICATION_FAILED
 
     def test_attribute_modification(self, issued_credential_and_entities):
         """Changing any value of any meta and attribute field in credential should result in failure."""
@@ -203,8 +206,10 @@ class TestReissuanceFlow:
             if attr.key == "name":
                 attr.message = "Eve"
         
-        with pytest.raises(ValueError, match="Attribute value mismatch for key name"):
-            issuer.process_request(re_issuance_req)
+        error_resp = issuer.process_request(re_issuance_req)
+        assert isinstance(error_resp, api.ErrorResponse)
+        assert error_resp.error_type == api.ErrorType.INVALID_REQUEST
+        assert "Attribute value mismatch for key name" in error_resp.message
 
 
     def test_reissuance_window_boundary(self, issued_credential_and_entities):
@@ -225,8 +230,9 @@ class TestReissuanceFlow:
         re_issuance_req = holder.process_request(freshness_resp)
         
         # Will fail because expiration is ~7 days away, which is > -1
-        with pytest.raises(Exception):
-            issuer.process_request(re_issuance_req)
+        error_resp = issuer.process_request(re_issuance_req)
+        assert isinstance(error_resp, api.ErrorResponse)
+        assert error_resp.error_type == api.ErrorType.INVALID_REQUEST
 
 
     def test_reissuance_state_reset_on_failure(self, issued_credential_and_entities):
@@ -243,8 +249,9 @@ class TestReissuanceFlow:
         # Introduce a failure by passing wrong proof in the VP
         re_issuance_req.vp.verifiableCredential["proof"] = b'badproof'
         
-        with pytest.raises(Exception):
-            issuer.process_request(re_issuance_req)
+        error_resp = issuer.process_request(re_issuance_req)
+        assert isinstance(error_resp, api.ErrorResponse)
+        assert error_resp.error_type == api.ErrorType.VERIFICATION_FAILED
             
         # State should be reset, meaning we can start a new interaction immediately
         assert issuer.state.available is True
@@ -268,8 +275,10 @@ class TestReissuanceFlow:
         # Attacker deliberately drops the validUntil from the VP to bypass expiration checks
         del re_issuance_req.vp.verifiableCredential["credentialSubject"]["validUntil"]
         
-        with pytest.raises(Exception):
-            issuer.process_request(re_issuance_req)
+        error_resp = issuer.process_request(re_issuance_req)
+        assert isinstance(error_resp, api.ErrorResponse)
+        assert error_resp.error_type == api.ErrorType.VERIFICATION_FAILED
+
 
 
     def test_reissued_credential_integrity(self, issued_credential_and_entities):

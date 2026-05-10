@@ -55,8 +55,8 @@ Tests focused on the internal state machines and behavioral guardrails of the pr
 *   **`test_holder_rejects_out_of_order_responses`**: Enforces the issuance state machine (e.g., rejecting a VC response if no freshness challenge was processed).
 
 ### `test_issuer.py` — Issuer Availability & Proof Validation
-*   **`test_issuer_rejects_overlapping_sessions`**: Confirms that the Issuer raises `IssuerNotAvailable` if a new session starts while another is active.
-*   **`test_issuer_rejects_replayed_proof`**: Verifies that a valid commitment proof from one session is rejected if replayed in another session (nonce binding).
+*   **`test_issuer_rejects_overlapping_sessions`**: Confirms that the Issuer returns `ISSUER_UNAVAILABLE` if a new session starts while another is active.
+*   **`test_issuer_rejects_replayed_proof`**: Verifies that a valid commitment proof from one session is rejected (with `VERIFICATION_FAILED`) if replayed in another session (nonce binding).
 *   **Epoch Boundary Logic**:
     *   `test_epoch_boundary_initial_issuance_outside_window`: Initial issuance correctly snaps to the next calculated epoch boundary.
     *   `test_epoch_boundary_initial_issuance_inside_window`: Bumps to the next boundary if issuance occurs inside the re-issuance window.
@@ -68,7 +68,7 @@ Tests focused on the internal state machines and behavioral guardrails of the pr
 ### `test_bitstring_manager.py` — Bitstring Lifecycle & Reuse
 *   **`test_initialization_and_indexing`**: Verifies correct bit-addressing and state tracking for newly initialized bitstrings.
 *   **`test_revocation_logic`**: Validates the transition of indices to the revoked state and ensures bit-level integrity.
-*   **`test_exhaustion_error`**: Confirms that `BitstringExhaustedError` is raised when no indices (new or expired) are available.
+*   **`test_exhaustion_error`**: Confirms that `BitstringExhaustedError` is raised by the manager when no indices (new or expired) are available.
 *   **`test_epoch_based_reuse`**: Validates the automatic reclamation of capacity for indices whose `expiry_epoch` has passed relative to the `current_epoch`.
 *   **`test_bitstring_expansion`**: Verifies dynamic resizing of the bitstring while preserving existing revocation states.
 
@@ -102,10 +102,28 @@ End-to-end integration tests that exercise the multi-step protocol sequences and
     *   `test_replay_attack_fails`: Ensures a VP from a past session cannot be reused against a new verifier challenge.
 *   **Entity API Tests**: Exercises the high-level `VerifierInstance` and `HolderInstance` interaction methods.
 
+### `test_error_handling.py` — Protocol Robustness
+Dedicated suite for the Error Response mechanism:
+*   **`test_issuer_unavailable_error`**: Verifies `ISSUER_UNAVAILABLE` return on concurrent access.
+*   **`test_bitstring_exhaustion_error`**: Verifies `BITSTRING_EXHAUSTED` return when capacity is reached.
+*   **`test_verification_failed_error`**: Verifies `VERIFICATION_FAILED` return on tampered or invalid cryptographic proofs (including low-level library errors).
+*   **`test_invalid_state_error`**: Verifies `INVALID_STATE` return on out-of-order protocol messages.
+*   **`test_reissuance_window_error`**: Verifies `INVALID_REQUEST` return when re-issuance is requested outside the temporal window.
+*   **`test_holder_handles_error`**: Confirms that the Holder correctly resets its state machine upon receipt of an `ErrorResponse`.
+
 ### `test_verifier_resolution.py` — Asynchronous Verifier Resolution
 *   **`test_verifier_resolution_on_cache_miss`**: Validates that the Verifier parks unknown VPs, resolves the issuer, and automatically resumes verification.
 *   **`test_verifier_resolution_on_key_mismatch`**: Ensures the Verifier re-resolves the issuer if the cached public key does not match the one in the VP.
 *   **`test_verifier_resolution_failure`**: Confirms that verification fails (with no errors) if the registry lookup returns no data.
+
+### `test_reissuance.py` — Credential Renewal Flow
+Validates the secure re-issuance protocol:
+*   **`test_stress_reissuance`**: Verifies stability over 100 sequential renewals.
+*   **`test_concurrent_separation`**: Ensures `ISSUER_UNAVAILABLE` is returned if another holder attempts re-issuance during an active session.
+*   **`test_replay_defenses`**: Rejects requests using stale nonces or substituted commitments (with `VERIFICATION_FAILED`).
+*   **`test_attribute_modification`**: Rejects requests where revealed attributes have been tampered with.
+*   **`test_reissuance_window_boundary`**: Enforces the temporal window for renewals.
+*   **`test_reissuance_state_reset_on_failure`**: Confirms the Issuer resets to idle after a failed re-issuance attempt.
 
 *   **`test_reissued_credential_integrity`**: Confirms that instantaneous re-issuance maintains the exact same epoch boundary and `metaHash`.
 
