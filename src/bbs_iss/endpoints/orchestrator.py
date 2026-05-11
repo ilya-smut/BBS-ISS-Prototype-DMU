@@ -157,6 +157,7 @@ class HolderOrchestrator(Orchestrator):
             trail.mark_completed()
 
         except Exception as e:
+            self.entity.reset()
             trail.mark_exception(e)
 
         return trail
@@ -221,6 +222,7 @@ class HolderOrchestrator(Orchestrator):
             trail.mark_completed()
 
         except Exception as e:
+            self.entity.reset()
             trail.mark_exception(e)
 
         return trail
@@ -278,6 +280,7 @@ class HolderOrchestrator(Orchestrator):
             trail.mark_completed()
 
         except Exception as e:
+            self.entity.reset()
             trail.mark_exception(e)
 
         return trail, forward_vp
@@ -344,14 +347,22 @@ class VerifierOrchestrator(Orchestrator):
             (trail, vp_request)
         """
         trail = RequestTrail(protocol="PRESENTATION_REQUEST")
-        vp_request = self.entity.presentation_request(requested_attributes)
-        trail.record("Verifier", "Holder", vp_request)
+        vp_request = None
 
-        holder_ep = self._get_endpoint("holder")
-        holder_ep.send(vp_request)
+        try:
+            vp_request = self.entity.presentation_request(requested_attributes)
+            trail.record("Verifier", "Holder", vp_request)
 
-        self._start_timeout()
-        trail.mark_completed()
+            holder_ep = self._get_endpoint("holder")
+            holder_ep.send(vp_request)
+
+            self._start_timeout()
+            trail.mark_completed()
+
+        except Exception as e:
+            self.entity.reset()
+            trail.mark_exception(e)
+
         return trail, vp_request
 
     def _start_timeout(self):

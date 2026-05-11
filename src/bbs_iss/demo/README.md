@@ -40,6 +40,10 @@ Default entity identifiers used in demo scenarios.
 
 Default timeout for Verifier VP interactions: **60 seconds**.
 
+### `DEFAULT_HTTP_TIMEOUT_SECONDS`
+
+Default timeout for HTTP requests via `FlaskEndpoint`: **30 seconds**. If a remote server does not respond within this duration, `requests.exceptions.ReadTimeout` is raised and the orchestrator records the failure in the trail.
+
 ---
 
 ## `local_demo_setup.py` — In-Process Wiring

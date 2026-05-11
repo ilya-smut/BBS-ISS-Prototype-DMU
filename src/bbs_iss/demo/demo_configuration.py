@@ -29,3 +29,6 @@ class DefaultEntityNames:
 
 # Default timeout for Verifier VP interaction (seconds)
 DEFAULT_VP_TIMEOUT_SECONDS = 60
+
+# Default timeout for HTTP requests via FlaskEndpoint (seconds)
+DEFAULT_HTTP_TIMEOUT_SECONDS = 30

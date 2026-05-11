@@ -47,7 +47,7 @@ Transport adapter for outbound communication with a remote entity. An Endpoint i
 | Class | Transport | Description |
 |-------|-----------|-------------|
 | `LocalLoopbackEndpoint` | In-process | Wraps a local Entity instance. Serializes via `to_json()`/`from_json()` to validate the serialization layer. Used for unit tests and local demos. |
-| `FlaskEndpoint` | HTTP | POSTs JSON to a remote Flask server via the `requests` library. Responses are deserialized via `Request.from_dict()`. |
+| `FlaskEndpoint` | HTTP | POSTs JSON to a remote Flask server via the `requests` library. Configurable HTTP timeout (default: `DEFAULT_HTTP_TIMEOUT_SECONDS = 30`). Raises `ReadTimeout` if the remote server doesn't respond within the configured duration. |
 
 ---
 
@@ -80,6 +80,16 @@ Flask-based server that handles requests at a configurable route (default: `/pro
 ## `orchestrator.py` — Protocol Orchestrators
 
 Orchestrators are the primary interaction interface. Each orchestrator wraps a single local Entity and holds Endpoint handles to other participants. They implement multi-step protocol flows as single method calls.
+
+### Error Recovery
+
+All orchestrator flow methods wrap their logic in `try/except`. On any exception (transport failure, unexpected error):
+
+1. `self.entity.reset()` is called to return the entity to idle.
+2. The exception is recorded in the trail via `mark_exception()`.
+3. The trail is returned with status `FAILED`.
+
+For protocol-level errors (`ErrorResponse` from the Issuer), the orchestrator passes it to the entity's `process_request()` (which calls `end_interaction()`) and marks the trail via `mark_failed()`.
 
 ### Base: `Orchestrator`
 

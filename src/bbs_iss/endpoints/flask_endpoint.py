@@ -1,7 +1,7 @@
 import json
 import requests as http_requests
 import bbs_iss.interfaces.requests_api as api
-from bbs_iss.demo.demo_configuration import DefaultRoutes
+from bbs_iss.demo.demo_configuration import DefaultRoutes, DEFAULT_HTTP_TIMEOUT_SECONDS
 from bbs_iss.endpoints.endpoint import Endpoint
 
 
@@ -13,7 +13,7 @@ class FlaskEndpoint(Endpoint):
     and deserialises responses.
     """
 
-    def __init__(self, name: str, target_url: str):
+    def __init__(self, name: str, target_url: str, timeout: int = DEFAULT_HTTP_TIMEOUT_SECONDS):
         """
         Parameters
         ----------
@@ -21,9 +21,12 @@ class FlaskEndpoint(Endpoint):
             Human-readable identifier (e.g. "issuer", "registry").
         target_url : str
             Base URL of the remote Flask server (e.g. "http://localhost:5001").
+        timeout : int
+            HTTP request timeout in seconds. Defaults to DEFAULT_HTTP_TIMEOUT_SECONDS.
         """
         super().__init__(name, target_url)
         self._response = None
+        self._timeout = timeout
 
     def send(self, request: api.Request) -> None:
         """
@@ -35,6 +38,7 @@ class FlaskEndpoint(Endpoint):
             f"{self.target_url}{DefaultRoutes.PROCESS}",
             json=json.loads(json_str),
             headers={"Content-Type": "application/json"},
+            timeout=self._timeout,
         )
         self._response.raise_for_status()
 

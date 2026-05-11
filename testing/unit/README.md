@@ -163,3 +163,36 @@ Tests that verify the full protocol lifecycle over real HTTP transport using Fla
 
 *   **`TestFlaskVerifierTimeout`**:
     *   `test_timeout_resets_verifier_state`: Configures a 1-second VP timeout on the `VerifierOrchestrator`, announces a presentation, and confirms the Verifier's state is automatically reset after the timeout fires.
+
+### `test_orchestrator_edge_cases.py` — Orchestrator Edge Cases
+Tests for error recovery, consent queue management, VP timeout lifecycle, and trail integrity using `LocalLoopback` transport.
+
+*   **`TestErrorResponseHandling`**:
+    *   `test_error_at_freshness_resets_holder`: `ISSUER_UNAVAILABLE` at the freshness step correctly resets the Holder to available.
+    *   `test_retry_after_error_succeeds`: After a failed issuance (Issuer busy), the same orchestrator successfully retries once the Issuer is reset.
+
+*   **`TestConsentQueue`**:
+    *   `test_multiple_pending_requests`: Two queued VPRequests coexist; consenting to one leaves the other in the queue.
+    *   `test_duplicate_consent`: Consecutive presentations with different challenge nonces succeed.
+    *   `test_stale_vp_request_after_reset`: VP sent after the Verifier has reset (simulating timeout) fails gracefully and resets the Holder.
+
+*   **`TestVPTimeout`**:
+    *   `test_timeout_cancelled_by_response`: VP arriving before the timeout expires keeps the Verifier in a valid state and cancels the timer.
+    *   `test_double_request_after_timeout`: After timeout fires, the Verifier can issue a fresh VPRequest.
+
+*   **`TestTrailIntegrity`**:
+    *   `test_failed_trail_records_all_steps`: A failure at step N still records all N entries plus the error.
+    *   `test_completed_trail_has_all_steps`: Successful issuance trail has exactly 4 entries with correct request types.
+
+### `test_transport_edge_cases.py` — Transport Failure & Listener Dispatch
+Tests for HTTP-level failure recovery and listener routing edge cases using real Flask servers.
+
+*   **`TestServerUnreachable`**:
+    *   `test_issuance_to_dead_server`: Issuance against an unreachable Issuer (dead port) → `ConnectionError`, trail FAILED, Holder resets.
+
+*   **`TestHTTPTimeout`**:
+    *   `test_timeout_triggers_failure`: 1-second timeout against a deliberately slow (5s) Flask handler → `ReadTimeout`, trail FAILED, Holder resets.
+
+*   **`TestListenerDispatch`**:
+    *   `test_vp_request_without_orchestrator_returns_501`: `VP_REQUEST` to a Holder listener with no orchestrator → HTTP 501.
+    *   `test_forward_vp_without_orchestrator_returns_error`: `FORWARD_VP` to a Verifier listener with no orchestrator → HTTP error (500/501).
