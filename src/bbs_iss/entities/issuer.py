@@ -3,6 +3,7 @@ import random
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 import bbs_iss.utils.utils as utils
+from bbs_iss.entities.entity import Entity
 from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError, IssuerStateError, BitstringExhaustedError
 from bbs_iss.interfaces.credential import VerifiableCredential
 from datetime import datetime, timedelta, timezone
@@ -103,7 +104,7 @@ class BitstringManager:
         bit_offset = index % 8
         self.revocation_bits[byte_idx] |= (1 << (7 - bit_offset))
 
-class IssuerInstance:
+class IssuerInstance(Entity):
     DEFAULT_EPOCH_SIZE_DAYS = 49
     DEFAULT_RE_ISSUANCE_WINDOW_DAYS = 7
     DEFAULT_BASELINE_DATE_STR = "2026-01-01T00:00:00Z"

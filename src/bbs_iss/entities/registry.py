@@ -1,9 +1,19 @@
 from typing import Dict, Optional
 import bbs_iss.interfaces.requests_api as api
+from bbs_iss.entities.entity import Entity
 
-class RegistryInstance:
+class RegistryInstance(Entity):
     def __init__(self):
         self._store: Dict[str, api.IssuerPublicData] = {}
+
+    @property
+    def available(self) -> bool:
+        """Registry is always available — it has no interaction state."""
+        return True
+
+    def reset(self):
+        """No-op — Registry has no pending interaction state to clear."""
+        pass
 
     def process_request(self, request: api.Request) -> api.IssuerDetailsResponse:
         if request.request_type == api.RequestType.REGISTER_ISSUER_DETAILS:

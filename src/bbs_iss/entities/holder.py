@@ -1,6 +1,7 @@
 import bbs_iss
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
+from bbs_iss.entities.entity import Entity
 from bbs_iss.exceptions.exceptions import (
     IssuerNotAvailable, FreshnessValueError, HolderNotInInteraction, 
     HolderStateError, ProofValidityError, UnregisteredIssuerError
@@ -9,7 +10,7 @@ from bbs_iss.interfaces.credential import VerifiableCredential, VerifiablePresen
 from bbs_iss.utils.cache import PublicDataCache
 
 
-class HolderInstance:
+class HolderInstance(Entity):
 
     class State:
         def __init__(self, awaiting: bool = False, freshness: bytes = None, issuer_pub_key: api.PublicKeyBLS = None, attributes: api.IssuanceAttributes = None, cred_name: str = None, original_request: api.RequestType = None, always_hidden_keys: list[str] = None):

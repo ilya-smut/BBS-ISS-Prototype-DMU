@@ -2,11 +2,12 @@ import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
 from bbs_iss.utils.utils import gen_nonce
 from datetime import datetime, timezone
+from bbs_iss.entities.entity import Entity
 from bbs_iss.interfaces.credential import VerifiablePresentation, VerifiableCredential
 from bbs_iss.exceptions.exceptions import VerifierStateError, VerifierNotInInteraction, MissingAttributeError
 from bbs_iss.utils.cache import PublicDataCache
 
-class VerifierInstance:
+class VerifierInstance(Entity):
     class State:
         def __init__(self):
             self.awaiting = False
