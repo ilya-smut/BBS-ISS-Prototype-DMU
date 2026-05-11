@@ -6,7 +6,7 @@ from bbs_iss.entities.registry import RegistryInstance
 import bbs_iss.utils.utils as utils
 
 import bbs_iss.interfaces.requests_api as api
-from bbs_iss.endpoints.demo_setup import create_local_demo
+from bbs_iss.demo.local_demo_setup import create_local_demo
 
 
 issuer = IssuerInstance()

@@ -14,6 +14,7 @@ Classes:
 """
 
 import bbs_iss.interfaces.requests_api as api
+from threading import Timer
 from bbs_iss.entities.entity import Entity
 from bbs_iss.endpoints.endpoint import Endpoint
 from bbs_iss.endpoints.trail import RequestTrail
@@ -73,6 +74,11 @@ class HolderOrchestrator(Orchestrator):
 
     def __init__(self, entity: HolderInstance, **endpoints: Endpoint):
         super().__init__(entity, **endpoints)
+        self.pending_requests: list[api.VPRequest] = []
+
+    def get_pending_requests(self) -> list[api.VPRequest]:
+        """Return all queued VPRequests awaiting user consent."""
+        return list(self.pending_requests)
 
     # ── Flow A: Credential Issuance ──────────────────────────────────────
 
@@ -233,13 +239,13 @@ class HolderOrchestrator(Orchestrator):
         This is called after the Holder has reviewed the Verifier's
         VPRequest and given consent to disclose the requested attributes.
 
-        The method builds the VP and returns it — the caller is responsible
-        for delivering it to the Verifier (via QR code, NFC, endpoint, etc.).
+        Builds the VP, auto-sends it to the Verifier endpoint if
+        configured, and removes the request from the pending queue.
 
         Parameters
         ----------
         vp_request : VPRequest
-            The Verifier's presentation request (from announce_presentation).
+            The Verifier's presentation request.
         vc_name : str
             Name of the stored credential to present.
         always_hidden_keys : list[str], optional
@@ -260,6 +266,15 @@ class HolderOrchestrator(Orchestrator):
                 vp_request, vc_name, always_hidden_keys
             )
             trail.record("Holder", "Verifier", forward_vp)
+
+            # Auto-send to Verifier if endpoint is configured
+            if "verifier" in self.endpoints:
+                self._get_endpoint("verifier").send(forward_vp)
+
+            # Remove from pending queue if present
+            if vp_request in self.pending_requests:
+                self.pending_requests.remove(vp_request)
+
             trail.mark_completed()
 
         except Exception as e:
@@ -299,8 +314,67 @@ class VerifierOrchestrator(Orchestrator):
     endpoint.
     """
 
-    def __init__(self, entity: VerifierInstance, **endpoints: Endpoint):
+    def __init__(self, entity: VerifierInstance, vp_timeout_seconds: int = None, **endpoints: Endpoint):
         super().__init__(entity, **endpoints)
+        self.verification_results: list[tuple] = []
+        self._vp_timeout_seconds = vp_timeout_seconds
+        self._timeout_timer = None
+
+    # ── Flow B: Send VP Request to Holder ─────────────────────────────
+
+    def send_presentation_request(
+        self,
+        requested_attributes: list[str],
+    ) -> tuple[RequestTrail, api.VPRequest]:
+        """
+        Generate a VPRequest and send it to the Holder endpoint.
+
+        The Holder's listener will queue the request for user consent.
+        The Verifier then waits for the ForwardVPResponse to arrive
+        at its own listener.
+
+        Parameters
+        ----------
+        requested_attributes : list[str]
+            Attribute names the Verifier wants disclosed.
+
+        Returns
+        -------
+        tuple[RequestTrail, VPRequest]
+            (trail, vp_request)
+        """
+        trail = RequestTrail(protocol="PRESENTATION_REQUEST")
+        vp_request = self.entity.presentation_request(requested_attributes)
+        trail.record("Verifier", "Holder", vp_request)
+
+        holder_ep = self._get_endpoint("holder")
+        holder_ep.send(vp_request)
+
+        self._start_timeout()
+        trail.mark_completed()
+        return trail, vp_request
+
+    def _start_timeout(self):
+        """Start a background timer that resets the Verifier state on expiry."""
+        self._cancel_timeout()
+        if self._vp_timeout_seconds is not None:
+            self._timeout_timer = Timer(
+                self._vp_timeout_seconds,
+                self._on_timeout,
+            )
+            self._timeout_timer.daemon = True
+            self._timeout_timer.start()
+
+    def _cancel_timeout(self):
+        """Cancel any running timeout timer."""
+        if self._timeout_timer is not None:
+            self._timeout_timer.cancel()
+            self._timeout_timer = None
+
+    def _on_timeout(self):
+        """Called when the VP timeout expires. Resets the Verifier state."""
+        self.entity.reset()
+        self._timeout_timer = None
 
     # ── Flow B (Verifier's half): Presentation-Announcement ──────────────
 
@@ -324,7 +398,9 @@ class VerifierOrchestrator(Orchestrator):
         VPRequest
             The challenge request containing requested attributes and nonce.
         """
-        return self.entity.presentation_request(requested_attributes)
+        vp_request = self.entity.presentation_request(requested_attributes)
+        self._start_timeout()
+        return vp_request
 
     # ── Flow B (Verifier's half): Complete Presentation ──────────────────
 
@@ -348,6 +424,7 @@ class VerifierOrchestrator(Orchestrator):
         tuple[bool, dict | None, VerifiablePresentation]
             (is_valid, revealed_attributes, vp)
         """
+        self._cancel_timeout()
         result = self.entity.process_request(forward_vp_response)
 
         # Handle registry resolution on cache miss

@@ -144,3 +144,22 @@ Validates the secure re-issuance protocol:
 *   **`test_holder_lazy_lookup_flow`**: Proves the "Cache-First, Registry-Second" behavior of the Holder lookup system.
 *   **`test_verifier_bulk_sync_flow`**: Verifies that Verifiers can perform a full-registry synchronization in a single interaction.
 *   **State Guardrail Tests**: Rejects unsolicited or out-of-order registry responses to prevent session hijacking or state corruption.
+
+### `test_orchestrator.py` — Orchestrator Integration
+*   **`test_issuance_via_orchestrator`**: Full issuance cycle through the `HolderOrchestrator` with `LocalLoopbackEndpoint` transport.
+*   **`test_re_issuance_via_orchestrator`**: Full re-issuance cycle including credential renewal via orchestrator.
+*   **`test_split_presentation`**: Tests the announce → execute → auto-send flow where the Holder's `execute_presentation()` automatically delivers the VP to the Verifier via the loopback endpoint.
+*   **`test_presentation_with_validity_check`**: Validates that the auto-sent VP arrives correctly at the Verifier and contains the expected disclosed attributes.
+
+### `test_flask_transport.py` — Flask HTTP Transport Integration
+Tests that verify the full protocol lifecycle over real HTTP transport using Flask servers on localhost.
+
+*   **`TestFlaskIssuance`**:
+    *   `test_issuance_over_http`: Full 4-step issuance round-trip over HTTP with JSON serialization through Flask endpoints.
+
+*   **`TestFlaskPresentation`**:
+    *   `test_pending_queue_populated`: Verifies that a VPRequest sent via HTTP appears in the Holder's `pending_requests` queue (consent checkpoint).
+    *   `test_full_presentation_over_http`: End-to-end consent flow: VPRequest → queue → manual consent → auto-send VP → Verifier verification. Confirms `valid=True` and correct attribute disclosure.
+
+*   **`TestFlaskVerifierTimeout`**:
+    *   `test_timeout_resets_verifier_state`: Configures a 1-second VP timeout on the `VerifierOrchestrator`, announces a presentation, and confirms the Verifier's state is automatically reset after the timeout fires.

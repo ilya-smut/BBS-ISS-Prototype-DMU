@@ -11,7 +11,10 @@ requires-python = ">=3.10"
 authors = [
     { name = "Ilya Smut", email = "ilya.smut.off.g@gmail.com" }
 ]
-dependencies = []
+dependencies = [
+    "flask>=3.0",
+    "requests>=2.31",
+]
 
 [project.optional-dependencies]
 dev = [

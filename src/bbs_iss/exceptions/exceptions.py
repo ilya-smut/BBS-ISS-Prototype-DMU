@@ -91,3 +91,9 @@ class MissingAttributeError(Exception):
     def __init__(self, message="Required attribute missing"):
         self.message = message
         super().__init__(self.message)
+
+class VerifierTimeoutError(Exception):
+    """Raised when the Verifier's VP interaction has timed out."""
+    def __init__(self, message="VP request timed out"):
+        self.message = message
+        super().__init__(self.message)

@@ -14,7 +14,7 @@ from bbs_iss.entities.issuer import IssuerInstance
 from bbs_iss.entities.verifier import VerifierInstance
 from bbs_iss.entities.registry import RegistryInstance
 from bbs_iss.entities.entity import Entity
-from bbs_iss.endpoints.demo_setup import create_local_demo
+from bbs_iss.demo.local_demo_setup import create_local_demo
 
 
 class TestEntityABC(unittest.TestCase):
@@ -185,15 +185,15 @@ class TestPresentationFlow(OrchestratorTestBase):
         )
 
     def test_split_presentation(self):
-        """Test the announce → execute → complete flow."""
-        # Verifier announces
+        """Test the announce → execute → auto-send flow."""
+        # Verifier announces (sets interaction state)
         vp_request = self.verifier_orch.announce_presentation(
             ["name", "id", "validUntil"]
         )
         self.assertIsInstance(vp_request, api.VPRequest)
         self.assertEqual(vp_request.requested_attributes, ["name", "id", "validUntil"])
 
-        # Holder executes (after consent) — returns VP, doesn't send it
+        # Holder executes (auto-sends to verifier via loopback)
         trail, forward_vp = self.holder_orch.execute_presentation(
             vp_request, "test-cred", always_hidden_keys=["LinkSecret"]
         )
@@ -202,24 +202,29 @@ class TestPresentationFlow(OrchestratorTestBase):
         self.assertIsNotNone(forward_vp)
         self.assertIsInstance(forward_vp, api.ForwardVPResponse)
 
-        # Verifier completes — caller delivers the VP
-        valid, attrs, vp = self.verifier_orch.complete_presentation(forward_vp)
-        self.assertTrue(valid)
-        self.assertIn("name", attrs)
+        # Loopback auto-send already processed the VP through the verifier.
+        # The result is in the loopback endpoint's _pending.
+        verifier_ep = self.holder_orch._get_endpoint("verifier")
+        result = verifier_ep._pending
+        self.assertIsNotNone(result)
+        # Result is (bool, dict|None, VP)
+        self.assertTrue(result[0])
+        self.assertIn("name", result[1])
 
     def test_presentation_with_validity_check(self):
-        """Test that presented attributes are correct."""
+        """Test that presented attributes are correct via auto-send."""
         vp_request = self.verifier_orch.announce_presentation(
             ["name", "id", "validUntil"]
         )
 
-        # Holder executes via orchestrator
+        # Holder executes (auto-sends, verifier processes via loopback)
         trail, forward_vp = self.holder_orch.execute_presentation(
             vp_request, "test-cred", always_hidden_keys=["LinkSecret"]
         )
 
-        # Complete presentation via verifier orchestrator
-        valid, attrs, vp = self.verifier_orch.complete_presentation(forward_vp)
+        # Result available on loopback endpoint
+        verifier_ep = self.holder_orch._get_endpoint("verifier")
+        valid, attrs, vp = verifier_ep._pending
         self.assertTrue(valid)
         self.assertIn("name", attrs)
         self.assertEqual(attrs["name"], "Alice")
