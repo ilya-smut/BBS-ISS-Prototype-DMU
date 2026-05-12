@@ -73,3 +73,14 @@ Holder:    http://localhost:5004/process
 ```
 
 Used by: `testing/flask_demo.py`, Flask transport integration tests.
+
+---
+
+## `scripts/` — Per-Entity Bootstrap & Docker Entrypoints
+
+This subdirectory provides standalone per-entity bootstrap functions (`flask_bootstrap.py`) and Docker entrypoint scripts (`run_*.py`) for deploying each entity as an independent process or container.
+
+- **`flask_bootstrap.py`**: Four functions (`holder_bootstrap`, `issuer_bootstrap`, `verifier_bootstrap`, `registry_bootstrap`) that each create a single entity, wire endpoints, start a listener, and return the orchestrator. All parameters default to `localhost` with `DefaultPorts`, but accept overrides for multi-host deployment.
+- **`run_holder.py`**, **`run_issuer.py`**, **`run_verifier.py`**, **`run_registry.py`**: Minimal Docker entrypoint scripts that read network topology from environment variables and call the corresponding bootstrap function.
+
+See [`scripts/README.md`](scripts/README.md) for full parameter documentation and usage examples.

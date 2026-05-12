@@ -62,6 +62,18 @@ pytest testing/unit/
 python testing/flask_demo.py
 ```
 
+### Running with Docker Compose
+
+Each entity can be deployed as an independent container using the provided `Dockerfile` and `docker-compose.yml`:
+
+```bash
+docker compose up --build
+```
+
+This starts four containers (Registry, Issuer, Verifier, Holder) on a shared bridge network. Docker's embedded DNS resolves service names (`http://registry`, `http://issuer`, etc.) to container IPs automatically. Each container runs a single entity via the entrypoint scripts in `src/bbs_iss/demo/scripts/`.
+
+Network topology is configured via environment variables in `docker-compose.yml`. See [`scripts/README.md`](src/bbs_iss/demo/scripts/README.md) for the full parameter reference.
+
 ---
 
 ## Architecture Overview
@@ -319,6 +331,8 @@ An optional **VP timeout** (`vp_timeout_seconds`) resets the Verifier's state if
 BBS-ISS-Prototype-DMU/
 ├── setup.sh                        # Automated installation script
 ├── pyproject.toml                  # Package configuration
+├── Dockerfile                      # Container image definition
+├── docker-compose.yml              # Multi-container orchestration
 ├── README.md                       # Architecture documentation (this file)
 ├── PROTOCOL_FLOWS.md               # Detailed sequence diagrams
 ├── BBS_LIBRARY_FIX.md              # ursa_bbs_signatures bug fixes
@@ -347,7 +361,13 @@ BBS-ISS-Prototype-DMU/
 │       ├── demo/                   # Demo setup & config (see demo/README.md)
 │       │   ├── demo_configuration.py  # Default ports, routes, entity names
 │       │   ├── local_demo_setup.py    # In-process loopback wiring
-│       │   └── flask_demo_setup.py    # Networked Flask wiring
+│       │   ├── flask_demo_setup.py    # Networked Flask wiring
+│       │   └── scripts/               # Per-entity bootstrap (see scripts/README.md)
+│       │       ├── flask_bootstrap.py  # Bootstrap functions (parameterised)
+│       │       ├── run_holder.py       # Docker entrypoint: Holder
+│       │       ├── run_issuer.py       # Docker entrypoint: Issuer
+│       │       ├── run_verifier.py     # Docker entrypoint: Verifier
+│       │       └── run_registry.py     # Docker entrypoint: Registry
 │       ├── exceptions/             # Exception hierarchy (see exceptions/README.md)
 │       │   └── exceptions.py
 │       └── utils/                  # Utilities (see utils/README.md)

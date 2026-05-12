@@ -1,0 +1,39 @@
+services:
+  registry:
+    build: .
+    command: python -m bbs_iss.demo.scripts.run_registry
+    ports:
+      - "5003:5003"
+
+  issuer:
+    build: .
+    command: python -m bbs_iss.demo.scripts.run_issuer
+    environment:
+      REGISTRY_BASE: "http://registry"
+    depends_on:
+      - registry
+
+  verifier:
+    build: .
+    command: python -m bbs_iss.demo.scripts.run_verifier
+    environment:
+      HOLDER_BASE: "http://holder"
+      REGISTRY_BASE: "http://registry"
+    ports:
+      - "5002:5002"
+    depends_on:
+      - registry
+
+  holder:
+    build: .
+    command: python -m bbs_iss.demo.scripts.run_holder
+    environment:
+      ISSUER_BASE: "http://issuer"
+      VERIFIER_BASE: "http://verifier"
+      REGISTRY_BASE: "http://registry"
+    ports:
+      - "5004:5004"
+    depends_on:
+      - registry
+      - issuer
+      - verifier
