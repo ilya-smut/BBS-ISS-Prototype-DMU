@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Registry Dashboard{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Registered Issuers</h2>
+        <span class="badge">{{ records|length }}</span>
+    </div>
+    {% if records %}
+    <div class="table-wrap">
+        {% for rec in records %}
+        <details class="record-row">
+            <summary>
+                <span class="rec-name">{{ rec.name }}</span>
+                <span class="rec-pk">{{ rec.pk_short }}</span>
+                <form method="post" action="{{ url_for('delete_record', issuer_name=rec.name) }}" class="inline-form" onsubmit="return confirm('Delete record for {{ rec.name }}?');">
+                    <button type="submit" class="btn btn-delete">&#10005; Delete</button>
+                </form>
+            </summary>
+            <div class="rec-detail">
+                <pre>Issuer Name:        {{ rec.name }}
+Public Key:         {{ rec.pk_full }}
+Revocation Bits:    {{ rec.bitstring_bits }}
+Bitstring:          {{ rec.bitstring }}
+Epoch Size:         {{ rec.epoch_days }} days
+Re-issue Window:    {{ rec.reissue_window_days }} days</pre>
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No issuers registered.</div>
+    {% endif %}
+</section>
+{% endblock %}

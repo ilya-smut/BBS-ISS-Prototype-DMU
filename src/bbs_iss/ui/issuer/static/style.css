@@ -1,0 +1,356 @@
+/* ═══════════════════════════════════════════════════════════════
+   Terminal-aesthetic stylesheet for BBS-ISS Issuer UI
+   Same colour scheme as Holder / Registry UI
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+    --bg:           #0d1117;
+    --bg-card:      #161b22;
+    --bg-input:     #1c2129;
+    --border:       #30363d;
+    --text:         #c9d1d9;
+    --text-dim:     #8b949e;
+    --text-bright:  #e6edf3;
+    --accent:       #58a6ff;
+    --green:        #3fb950;
+    --red:          #f85149;
+    --yellow:       #d29922;
+    --font-mono:    "Cascadia Mono", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Navigation ─────────────────────────────────────────────── */
+
+header {
+    border-bottom: 1px solid var(--border);
+}
+
+nav {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo {
+    color: var(--accent);
+    font-weight: bold;
+    font-size: 14px;
+}
+
+/* ── Main Content ───────────────────────────────────────────── */
+
+main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    flex: 1;
+    width: 100%;
+}
+
+/* ── Flash Messages ─────────────────────────────────────────── */
+
+.flash-container {
+    margin-bottom: 20px;
+}
+
+.flash {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.flash-success {
+    border-color: var(--green);
+    color: var(--green);
+}
+
+.flash-error {
+    border-color: var(--red);
+    color: var(--red);
+}
+
+/* ── Panels ─────────────────────────────────────────────────── */
+
+.panel {
+    border: 1px solid var(--border);
+    margin-bottom: 24px;
+    background: var(--bg-card);
+}
+
+.panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.panel-header h2 {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--text-bright);
+    letter-spacing: 0.5px;
+}
+
+.badge {
+    background: var(--bg-input);
+    color: var(--text-dim);
+    padding: 2px 8px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+}
+
+.empty-state {
+    padding: 20px 16px;
+    color: var(--text-dim);
+    text-align: center;
+    font-style: italic;
+}
+
+/* ── Configuration Form ─────────────────────────────────────── */
+
+.config-form {
+    padding: 16px;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 8px 12px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.config-grid label {
+    color: var(--text-bright);
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.config-value {
+    color: var(--text-dim);
+    font-size: 12px;
+}
+
+.config-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    width: 100%;
+    max-width: 360px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+    border-color: var(--accent);
+}
+
+/* ── Pre-formatted Blocks ───────────────────────────────────── */
+
+.pre-wrap {
+    padding: 12px 16px;
+}
+
+.pre-wrap pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+    font-size: 12px;
+}
+
+/* ── Credential Rows ────────────────────────────────────────── */
+
+.cred-row,
+.trail-row {
+    border-bottom: 1px solid var(--border);
+}
+
+.cred-row:last-child,
+.trail-row:last-child {
+    border-bottom: none;
+}
+
+.cred-row summary,
+.trail-row summary {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    list-style: none;
+    transition: background 0.1s;
+}
+
+.cred-row summary:hover,
+.trail-row summary:hover {
+    background: var(--bg-input);
+}
+
+.cred-row summary::-webkit-details-marker,
+.trail-row summary::-webkit-details-marker {
+    display: none;
+}
+
+.cred-status {
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 100px;
+}
+
+.status-valid {
+    color: var(--green);
+}
+
+.status-expired {
+    color: var(--yellow);
+}
+
+.status-revoked {
+    color: var(--red);
+}
+
+.cred-issuer {
+    color: var(--accent);
+    min-width: 80px;
+}
+
+.cred-expiry {
+    color: var(--text-dim);
+    flex: 1;
+}
+
+.cred-detail {
+    padding: 12px 16px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+}
+
+.cred-detail pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+    font-size: 12px;
+}
+
+/* ── Trail Status ───────────────────────────────────────────── */
+
+.trail-status {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+}
+
+.trail-protocol {
+    color: var(--accent);
+    font-weight: bold;
+    min-width: 160px;
+}
+
+.trail-status-text {
+    color: var(--text-dim);
+    font-size: 11px;
+    min-width: 80px;
+}
+
+.trail-error {
+    color: var(--red);
+    font-size: 11px;
+}
+
+.trail-ts {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-left: auto;
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+
+.btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+    display: inline-block;
+}
+
+.btn:hover {
+    border-color: var(--accent);
+    color: var(--text-bright);
+}
+
+.btn-primary {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-primary:hover {
+    background: var(--accent);
+    color: var(--bg);
+}
+
+.btn-delete {
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--red);
+    border-color: var(--red);
+    margin-left: auto;
+}
+
+.btn-delete:hover {
+    background: var(--red);
+    color: var(--bg);
+}
+
+.inline-form {
+    display: inline;
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+
+footer {
+    border-top: 1px solid var(--border);
+    padding: 12px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 11px;
+}

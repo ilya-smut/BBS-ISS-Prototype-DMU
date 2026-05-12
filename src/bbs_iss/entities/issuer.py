@@ -499,7 +499,7 @@ class IssuerInstance(Entity):
             issuer_name=issuer_name,
             public_key=self.public_key,
             revocation_bitstring=self.bitstring_manager.get_revocation_bitstring_hex(),
-            valid_until_weeks=epoch_size // 7,
+            epoch_size_days=epoch_size,
             validity_window_days=window_days
         )
         
@@ -516,7 +516,7 @@ class IssuerInstance(Entity):
             issuer_name=issuer_name,
             public_key=self.public_key,
             revocation_bitstring=self.bitstring_manager.get_revocation_bitstring_hex(),
-            valid_until_weeks=epoch_size // 7,
+            epoch_size_days=epoch_size,
             validity_window_days=window_days
         )
         

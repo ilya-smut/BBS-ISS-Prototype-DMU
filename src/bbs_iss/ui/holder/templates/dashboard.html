@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Holder Dashboard{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Credential Storage</h2>
+        <span class="badge">{{ credentials|length }}</span>
+    </div>
+    {% if credentials %}
+    <div class="table-wrap">
+        {% for cred in credentials %}
+        <details class="credential-row">
+            <summary>
+                <span class="cred-status {% if cred.revoked %}status-revoked{% elif cred.expired %}status-expired{% else %}status-valid{% endif %}">
+                    {% if cred.revoked %}&#10007; REVOKED{% elif cred.expired %}&#9888; EXPIRED{% else %}&#10003; VALID{% endif %}
+                </span>
+                <span class="cred-name">{{ cred.name }}</span>
+                <span class="cred-issuer">{{ cred.issuer }}</span>
+                <span class="cred-expiry">{{ cred.expiry or "N/A" }}</span>
+                {% if cred.in_reissue_window %}
+                <form method="post" action="{{ url_for('reissue', vc_name=cred.name) }}" class="inline-form" onsubmit="return confirm('Re-issue credential {{ cred.name }}?');">
+                    <button type="submit" class="btn btn-renew">&#8635; Renew</button>
+                </form>
+                {% endif %}
+            </summary>
+            <div class="cred-detail">
+                <pre>{{ cred.json }}</pre>
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No credentials stored.</div>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Known Issuers</h2>
+        <form method="post" action="{{ url_for('sync_registry') }}" class="inline-form">
+            <button type="submit" class="btn btn-small">Sync Registry</button>
+        </form>
+    </div>
+    {% if issuers %}
+    <div class="table-wrap">
+        {% for iss in issuers %}
+        <details class="issuer-row-detail">
+            <summary class="issuer-row">
+                <span class="issuer-name">{{ iss.name }}</span>
+                <span class="issuer-pk">{{ iss.pk_short }}</span>
+                <span class="issuer-ts">{{ iss.obtained_at }}</span>
+            </summary>
+            <div class="cred-detail">
+                <pre>Issuer Name:        {{ iss.name }}
+Public Key:         {{ iss.pk_full }}
+Revocation Bits:    {{ iss.bitstring_bits }}
+Bitstring:          {{ iss.bitstring }}
+Epoch Size:         {{ iss.epoch_days }} days
+Re-issue Window:    {{ iss.reissue_window_days }} days
+Obtained At:        {{ iss.obtained_at }}</pre>
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">Cache empty. Click "Sync Registry" to fetch issuers.</div>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Protocol Trails</h2>
+        <span class="badge">{{ trails|length }}</span>
+    </div>
+    {% if trails %}
+    <div class="table-wrap">
+        {% for trail in trails %}
+        <details class="trail-row">
+            <summary>
+                <span class="trail-status {% if trail.status == 'COMPLETED' %}status-ok{% else %}status-fail{% endif %}">
+                    {% if trail.status == "COMPLETED" %}&#10003;{% else %}&#10007;{% endif %}
+                </span>
+                <span class="trail-protocol">{{ trail.protocol }}</span>
+                <span class="trail-status-text">{{ trail.status }}</span>
+                {% if trail.completed_at %}
+                <span class="trail-ts">{{ trail.completed_at }}</span>
+                {% endif %}
+                {% if trail.error %}
+                <span class="trail-error">{{ trail.error }}</span>
+                {% endif %}
+            </summary>
+            <div class="trail-detail">
+                <pre>{{ trail.print_trail(verbose=True) }}</pre>
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No protocol trails recorded.</div>
+    {% endif %}
+</section>
+{% endblock %}

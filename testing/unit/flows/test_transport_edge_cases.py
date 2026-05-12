@@ -75,7 +75,7 @@ class TestServerUnreachable(unittest.TestCase):
             issuer_name="Dead-Issuer",
             public_key=issuer.public_key,
             revocation_bitstring="ff",
-            valid_until_weeks=7,
+            epoch_size_days=7,
             validity_window_days=7,
         ))
 
@@ -106,7 +106,7 @@ class TestHTTPTimeout(unittest.TestCase):
             issuer_name="Slow-Issuer",
             public_key=issuer.public_key,
             revocation_bitstring="ff",
-            valid_until_weeks=7,
+            epoch_size_days=7,
             validity_window_days=7,
         ))
 

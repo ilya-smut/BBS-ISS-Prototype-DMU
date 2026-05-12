@@ -86,7 +86,7 @@ def test_holder_resolution_cache_hit(setup_entities):
         issuer_name=issuer_name,
         public_key=issuer.public_key,
         revocation_bitstring="0"*10,
-        valid_until_weeks=52,
+        epoch_size_days=52,
         validity_window_days=7
     )
     holder.public_data_cache.update(issuer_name, data)

@@ -27,6 +27,7 @@ class RequestTrail:
     entries: list[TrailEntry] = field(default_factory=list)
     status: str = "IN_PROGRESS"   # IN_PROGRESS | COMPLETED | FAILED
     error: Optional[str] = None
+    completed_at: Optional[str] = None
     _step_counter: int = field(default=0, repr=False)
 
     def record(self, sender: str, receiver: str, message):
@@ -70,6 +71,7 @@ class RequestTrail:
     def mark_completed(self):
         """Mark the protocol execution as successfully completed."""
         self.status = "COMPLETED"
+        self.completed_at = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
     def mark_failed(self, error_response: api.ErrorResponse):
         """
@@ -82,6 +84,7 @@ class RequestTrail:
         """
         self.status = "FAILED"
         self.error = f"{error_response.error_type.name}: {error_response.message}"
+        self.completed_at = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
     def mark_exception(self, exception: Exception):
         """
@@ -94,6 +97,7 @@ class RequestTrail:
         """
         self.status = "FAILED"
         self.error = f"{type(exception).__name__}: {exception}"
+        self.completed_at = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
     @property
     def last_response(self):
@@ -121,6 +125,8 @@ class RequestTrail:
         lines.append(f"{'PROTOCOL TRAIL: ' + self.protocol:^60}")
         lines.append("=" * 60)
         lines.append(f"  Status: {self.status}")
+        if self.completed_at:
+            lines.append(f"  Completed: {self.completed_at}")
         if self.error:
             lines.append(f"  Error:  {self.error}")
         lines.append("-" * 60)

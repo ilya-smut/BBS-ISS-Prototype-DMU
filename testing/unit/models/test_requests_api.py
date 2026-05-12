@@ -18,7 +18,7 @@ def test_issuer_public_data_serialization():
         issuer_name="Test-Issuer",
         public_key=pk,
         revocation_bitstring="0011",
-        valid_until_weeks=5,
+        epoch_size_days=5,
         validity_window_days=10
     )
     
@@ -57,7 +57,7 @@ def test_issuer_public_data_revocation_check():
         issuer_name="Test-Issuer",
         public_key=pk,
         revocation_bitstring="C0",
-        valid_until_weeks=1,
+        epoch_size_days=1,
         validity_window_days=1
     )
     

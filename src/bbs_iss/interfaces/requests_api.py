@@ -41,7 +41,7 @@ class IssuerPublicData:
     issuer_name: str
     public_key: PublicKeyBLS
     revocation_bitstring: str
-    valid_until_weeks: int
+    epoch_size_days: int
     validity_window_days: int
 
     def check_revocation_status(self, bit_index_hex: str) -> bool:
@@ -76,8 +76,8 @@ class IssuerPublicData:
         lines.append(f"Issuer Name:    {self.issuer_name}")
         lines.append(f"Public Key:     {pk_short}")
         lines.append(f"Revocation:     {len(self.revocation_bitstring) * 4} bits")
-        lines.append(f"Epoch Size:     {self.validity_window_days} days")
-        lines.append(f"Valid For:      {self.valid_until_weeks} weeks")
+        lines.append(f"Re-issue Window: {self.validity_window_days} days")
+        lines.append(f"Epoch Size:     {self.epoch_size_days} days")
         lines.append("="*50 + "\n")
         return "\n".join(lines)
 
@@ -86,7 +86,7 @@ class IssuerPublicData:
             "issuer_name": self.issuer_name,
             "public_key": self.public_key.to_dict(),
             "revocation_bitstring": self.revocation_bitstring,
-            "valid_until_weeks": self.valid_until_weeks,
+            "epoch_size_days": self.epoch_size_days,
             "validity_window_days": self.validity_window_days
         }
 
@@ -96,7 +96,7 @@ class IssuerPublicData:
             issuer_name=data["issuer_name"],
             public_key=PublicKeyBLS.from_dict(data["public_key"]),
             revocation_bitstring=data["revocation_bitstring"],
-            valid_until_weeks=data["valid_until_weeks"],
+            epoch_size_days=data["epoch_size_days"],
             validity_window_days=data["validity_window_days"]
         )
 

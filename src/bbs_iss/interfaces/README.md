@@ -30,7 +30,7 @@ The authoritative metadata record for an Issuer, stored in the Registry and repl
 | `issuer_name` | `str` | Unique issuer identifier |
 | `public_key` | `PublicKeyBLS` | BLS public key |
 | `revocation_bitstring` | `str` | Hex-encoded revocation status vector |
-| `valid_until_weeks` | `int` | Default credential validity (epoch size) |
+| `epoch_size_days` | `int` | Credential validity epoch size in days |
 | `validity_window_days` | `int` | Re-issuance window |
 
 Provides `check_revocation_status(bit_index_hex)` for revocation lookups.

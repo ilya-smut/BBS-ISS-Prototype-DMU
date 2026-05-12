@@ -92,7 +92,7 @@ def test_verifier_resolution_on_key_mismatch(setup_entities):
         issuer_name=issuer_name,
         public_key=api.PublicKeyBLS(os.urandom(96)), # Wrong key
         revocation_bitstring="0"*10,
-        valid_until_weeks=52,
+        epoch_size_days=52,
         validity_window_days=7
     )
     verifier.public_data_cache.update(issuer_name, stale_data)

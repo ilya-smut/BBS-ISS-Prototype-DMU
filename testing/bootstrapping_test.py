@@ -1,4 +1,3 @@
-from bbs_iss.demo.scripts.flask_bootstrap import verifier_bootstrap
 import bbs_iss.demo.scripts.flask_bootstrap as bootstrap
 import bbs_iss.interfaces.requests_api as api
 import bbs_iss.utils.utils as utils
