@@ -6,7 +6,7 @@ import ursa_bbs_signatures as bbs
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bbs_iss.interfaces.requests_api import KeyedIndexedMessage, PublicKeyBLS
+    from bbs_iss.interfaces.requests_api import KeyedIndexedMessage, PublicKeyBLS, CredentialSchema
 
 
 class VerifiableCredential:
@@ -15,7 +15,6 @@ class VerifiableCredential:
     """
     DEFAULT_CONTEXT = [
         "https://www.w3.org/ns/credentials/v2",
-        "https://example.org/contexts/student-card-v1"
     ]
     DEFAULT_TYPE = ["VerifiableCredential"]
     META_HASH_KEY = "metaHash"
@@ -33,11 +32,50 @@ class VerifiableCredential:
         context: Optional[List[str]] = None,
         proof: Optional[bytes] = None
     ):
-        self.context = context or self.DEFAULT_CONTEXT
-        self.type = type or (self.DEFAULT_TYPE + ["MockCredential"])
+        self.context = self.DEFAULT_CONTEXT.copy()
+        if context:
+            for ctx in context:
+                if ctx not in self.context:
+                    self.context.append(ctx)
+
+        self.type = self.DEFAULT_TYPE.copy()
+        if type:
+            for t in type:
+                if t not in self.type:
+                    self.type.append(t)
+
         self.issuer = issuer
         self.credential_subject = credential_subject
         self.proof = proof
+
+    def produce_schema(self, hidden_keys: list[str] = None) -> 'CredentialSchema':
+        from bbs_iss.interfaces.requests_api import CredentialSchema
+        hidden_keys = hidden_keys or ["LinkSecret"]
+        revealed = []
+        hidden = []
+        for k in self.credential_subject.keys():
+            if k in hidden_keys:
+                hidden.append(k)
+            else:
+                revealed.append(k)
+        
+        schema_kwargs = {}
+        
+        for t in self.type:
+            if t not in self.DEFAULT_TYPE:
+                schema_kwargs["type"] = t
+                break
+                
+        for c in self.context:
+            if c not in self.DEFAULT_CONTEXT:
+                schema_kwargs["context"] = c
+                break
+        
+        return CredentialSchema(
+            revealed_attributes=revealed,
+            hidden_attributes=hidden,
+            **schema_kwargs
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         data = {
@@ -157,8 +195,7 @@ class VerifiablePresentation:
     """
 
     DEFAULT_CONTEXT = [
-        "https://www.w3.org/ns/credentials/v2",
-        "https://example.org/contexts/student-card-v1"
+        "https://www.w3.org/ns/credentials/v2"
     ]
     DEFAULT_TYPE = ["VerifiablePresentation"]
 
@@ -179,6 +216,31 @@ class VerifiablePresentation:
     def add_proof(self, proof: bytes):
         """Sets the ZKP proof on the embedded verifiable credential."""
         self.verifiableCredential["proof"] = proof
+
+    def produce_schema(self) -> 'CredentialSchema':
+        from bbs_iss.interfaces.requests_api import CredentialSchema
+        revealed = list(self.verifiableCredential.get("credentialSubject", {}).keys())
+        
+        vc_type = self.verifiableCredential.get("type", [])
+        vc_context = self.verifiableCredential.get("@context", [])
+        
+        schema_kwargs = {}
+        
+        for t in vc_type:
+            if t not in VerifiableCredential.DEFAULT_TYPE:
+                schema_kwargs["type"] = t
+                break
+                
+        for c in vc_context:
+            if c not in VerifiableCredential.DEFAULT_CONTEXT:
+                schema_kwargs["context"] = c
+                break
+                
+        return CredentialSchema(
+            revealed_attributes=revealed,
+            hidden_attributes=[],
+            **schema_kwargs
+        )
 
     # ── Serialisation ────────────────────────────────────────────────
 

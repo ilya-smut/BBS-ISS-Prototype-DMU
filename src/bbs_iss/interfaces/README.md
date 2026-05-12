@@ -32,8 +32,22 @@ The authoritative metadata record for an Issuer, stored in the Registry and repl
 | `revocation_bitstring` | `str` | Hex-encoded revocation status vector |
 | `epoch_size_days` | `int` | Credential validity epoch size in days |
 | `validity_window_days` | `int` | Re-issuance window |
+| `schema` | `CredentialSchema` | Defined structural metadata for attributes |
 
 Provides `check_revocation_status(bit_index_hex)` for revocation lookups.
+
+### `CredentialSchema`
+
+The single source of truth for attribute structures, establishing structural metadata standardization. 
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `revealed_attributes` | `list[str]` | Ordered list of revealed attribute keys |
+| `hidden_attributes` | `list[str]` | Ordered list of hidden attribute keys (e.g., `LinkSecret`) |
+| `type` | `str` | W3C credential type (e.g., `MockCredential`) |
+| `context` | `str` | W3C JSON-LD context URL |
+
+Supports `compare_revealed()`, `compare_by_all_keys()`, and `compare_full()` to ensure strict structural compliance between different entities during issuance and verification.
 
 ### Attribute Model
 
@@ -53,9 +67,9 @@ Extends `bbs.IndexedMessage` with a `key` field (attribute name), allowing attri
 Manages the complete attribute set for a credential issuance. Handles:
 
 - Sequential index assignment for BBS+ message positioning
-- Separation of revealed vs. blinded attributes
+- **Strict Ordering:** Ensures all revealed attributes are contiguous and assigned lower indices, followed by contiguous hidden attributes at higher indices (critical for BBS+ signature integrity)
 - Pedersen commitment lifecycle (`build_commitment_append_meta()`)
-- Automatic appending of metadata attributes (`metaHash`, `validUntil`, `revocationMaterial`)
+- Automatic appending of metadata attributes (`validUntil`, `revocationMaterial`, `metaHash`) at the end of the revealed indices block
 - Blinding factor and commitment proof storage
 
 ### Request / Response Classes
@@ -108,6 +122,7 @@ A mock W3C Verifiable Credential for BBS+ signatures.
 
 **Key features:**
 
+- **`produce_schema()`** — Dynamically infers and constructs a `CredentialSchema` by comparing its `type` and `@context` arrays against base W3C defaults, allowing the system to flexibly adapt without hardcoded strings.
 - **`normalize_meta_fields()`** — Deterministic BLAKE2b hash of the credential envelope (context, type, issuer, subject keys in insertion order, proof label). Key order is preserved (not sorted) because BBS+ message indexing depends on it.
 - **`prepare_verification_request(pub_key)`** — Builds a `bbs.VerifyRequest` by re-computing the `metaHash` and assembling the message list.
 - **`prep_body_for_vp(credential, revealed_keys)`** — Creates a stripped-down copy of the credential containing only the disclosed attributes.
@@ -118,6 +133,7 @@ W3C-style VP envelope that carries the ZKP proof and a selectively-disclosed cre
 
 **Key features:**
 
+- **`produce_schema()`** — Extracts the underlying credential's schema, dynamically parsing custom types and contexts.
 - **`normalize_meta_fields()`** — Hashes both the VP envelope and the embedded credential envelope (excluding variable proof values). Provides domain separation between VP-level and VC-level fields.
 - **`build_bound_nonce(nonce, commitment=None)`** — Produces an effective nonce by hashing the Verifier's challenge with the VP metadata digest. Optionally includes a commitment for re-issuance binding.
 - **`prepare_verification_request(pub_key, nonce, commitment=None)`** — Reconstructs the bound nonce and builds a `bbs.VerifyProofRequest` for proof verification. Derives the total message count directly from the proof bytes.

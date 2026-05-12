@@ -193,6 +193,154 @@ select:focus {
     font-size: 12px;
 }
 
+
+/* ── Schema Block ──────────────────────────────────────────── */
+
+.schema-block {
+    padding: 12px 16px;
+}
+
+.schema-meta {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 4px 12px;
+    margin-bottom: 14px;
+}
+
+.schema-label {
+    color: var(--text-bright);
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.schema-value {
+    color: var(--text);
+    font-size: 12px;
+}
+
+.schema-context {
+    word-break: break-all;
+    color: var(--text-dim);
+}
+
+.schema-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.schema-col-header {
+    display: block;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+}
+
+.schema-list {
+    list-style-position: inside;
+    padding: 0;
+    margin: 0;
+    font-size: 12px;
+    color: var(--text);
+}
+
+.schema-list li {
+    padding: 2px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.schema-list li:last-child {
+    border-bottom: none;
+}
+
+.schema-list-hidden {
+    color: var(--yellow);
+}
+
+/* ── Schema Editor ─────────────────────────────────────────── */
+
+.schema-editor {
+    border-top: 1px solid var(--border);
+}
+
+.schema-editor-toggle {
+    padding: 10px 16px;
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: bold;
+    list-style: none;
+    transition: background 0.1s;
+}
+
+.schema-editor-toggle:hover {
+    background: var(--bg-input);
+}
+
+.schema-editor-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.schema-form {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.schema-form-grid {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 8px 12px;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.schema-form-grid label {
+    color: var(--text-bright);
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.schema-form-attrs {
+    margin-bottom: 12px;
+}
+
+.attr-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    align-items: center;
+}
+
+.attr-row input {
+    max-width: 260px;
+}
+
+.attr-note {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-bottom: 8px;
+    font-style: italic;
+}
+
+.btn-remove {
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--red);
+    border-color: var(--red);
+}
+
+.btn-remove:hover {
+    background: var(--red);
+    color: var(--bg);
+}
+
+.btn-small {
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
 /* ── Credential Rows ────────────────────────────────────────── */
 
 .cred-row,

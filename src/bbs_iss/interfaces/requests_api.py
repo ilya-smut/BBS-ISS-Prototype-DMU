@@ -37,12 +37,58 @@ class SigningPublicKey:
 
 
 @dataclass
+class CredentialSchema:
+    revealed_attributes: list[str]
+    hidden_attributes: list[str]
+    type: str = "MockCredential"
+    context: str = "https://example.org/contexts/MockCredential"
+
+    def compare_revealed(self, other: 'CredentialSchema') -> bool:
+        return self.revealed_attributes == other.revealed_attributes
+
+    def compare_by_all_keys(self, other: 'CredentialSchema') -> bool:
+        return (self.revealed_attributes == other.revealed_attributes and
+                self.hidden_attributes == other.hidden_attributes)
+
+    def compare_full(self, other: 'CredentialSchema') -> bool:
+        return (self.type == other.type and
+                self.context == other.context and
+                self.revealed_attributes == other.revealed_attributes and
+                self.hidden_attributes == other.hidden_attributes)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "revealed_attributes": self.revealed_attributes,
+            "hidden_attributes": self.hidden_attributes,
+            "type": self.type,
+            "context": self.context
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CredentialSchema':
+        return cls(
+            revealed_attributes=data.get("revealed_attributes", []),
+            hidden_attributes=data.get("hidden_attributes", []),
+            type=data.get("type", "MockCredential"),
+            context=data.get("context", "https://example.org/contexts/MockCredential")
+        )
+
+    def to_json(self, indent: int = 4) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'CredentialSchema':
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
 class IssuerPublicData:
     issuer_name: str
     public_key: PublicKeyBLS
     revocation_bitstring: str
     epoch_size_days: int
     validity_window_days: int
+    schema: Optional[CredentialSchema] = None
 
     def check_revocation_status(self, bit_index_hex: str) -> bool:
         """
@@ -78,26 +124,35 @@ class IssuerPublicData:
         lines.append(f"Revocation:     {len(self.revocation_bitstring) * 4} bits")
         lines.append(f"Re-issue Window: {self.validity_window_days} days")
         lines.append(f"Epoch Size:     {self.epoch_size_days} days")
+        if self.schema:
+            lines.append(f"Schema Type:    {self.schema.type}")
+            lines.append(f"Schema Fields:  {len(self.schema.revealed_attributes)} revealed, {len(self.schema.hidden_attributes)} hidden")
         lines.append("="*50 + "\n")
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        data = {
             "issuer_name": self.issuer_name,
             "public_key": self.public_key.to_dict(),
             "revocation_bitstring": self.revocation_bitstring,
             "epoch_size_days": self.epoch_size_days,
             "validity_window_days": self.validity_window_days
         }
+        if self.schema:
+            data["schema"] = self.schema.to_dict()
+        return data
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> IssuerPublicData:
+        schema_data = data.get("schema")
+        schema = CredentialSchema.from_dict(schema_data) if schema_data else None
         return cls(
             issuer_name=data["issuer_name"],
             public_key=PublicKeyBLS.from_dict(data["public_key"]),
             revocation_bitstring=data["revocation_bitstring"],
             epoch_size_days=data["epoch_size_days"],
-            validity_window_days=data["validity_window_days"]
+            validity_window_days=data["validity_window_days"],
+            schema=schema
         )
 
     def to_json(self, indent: int = 4) -> str:
@@ -157,27 +212,42 @@ class KeyedIndexedMessage(bbs.IndexedMessage):
 class IssuanceAttributes:
     def __init__(self):
         self.size = 0
+        self._raw_revealed = []
+        self._raw_hidden = []
         self.attributes: list[KeyedIndexedMessage] = []
         self.blinded_attributes: list[KeyedIndexedMessage] = []
         self.messages_with_blinded_indices: list[KeyedIndexedMessage] = [] # Workaround due to the way the library is implemented
         self._committed = False
         self._commitment = None
         self._blinding_factor = None
-
+        self._proof = None
 
     def append(self, key: str, attribute: str, type: AttributeType = AttributeType.REVEALED):
         if type == AttributeType.REVEALED:
-            self.attributes.append(KeyedIndexedMessage(index=self.size, message=attribute, key=key))
+            self._raw_revealed.append((key, attribute))
         elif type == AttributeType.HIDDEN:
-            self.blinded_attributes.append(KeyedIndexedMessage(index=self.size, message=attribute, key=key))
-            self.messages_with_blinded_indices.append(KeyedIndexedMessage(index=self.size, message="", key=key)) # Workaround due to the way the library is implemented
+            self._raw_hidden.append((key, attribute))
         self.size += 1
-
 
     def build_commitment_append_meta(self, nonce: bytes, public_key: PublicKeyBLS):
         self.append(VerifiableCredential.VALID_UNTIL_KEY, VerifiableCredential.VALID_UNTIL_PLACEHOLDER, AttributeType.REVEALED)
         self.append(VerifiableCredential.REVOCATION_MATERIAL_KEY, VerifiableCredential.REVOCATION_MATERIAL_PLACEHOLDER, AttributeType.REVEALED)
         self.append(VerifiableCredential.META_HASH_KEY, VerifiableCredential.META_HASH_PLACEHOLDER, AttributeType.REVEALED)
+        
+        self.size = 0
+        self.attributes = []
+        self.blinded_attributes = []
+        self.messages_with_blinded_indices = []
+        
+        for key, val in self._raw_revealed:
+            self.attributes.append(KeyedIndexedMessage(index=self.size, message=val, key=key))
+            self.size += 1
+            
+        for key, val in self._raw_hidden:
+            self.blinded_attributes.append(KeyedIndexedMessage(index=self.size, message=val, key=key))
+            self.messages_with_blinded_indices.append(KeyedIndexedMessage(index=self.size, message="", key=key))
+            self.size += 1
+
         if not self.blinded_attributes:
             raise NoBlindedAttributes()
         commit_req = bbs.CreateBlindedCommitmentRequest(
@@ -186,10 +256,15 @@ class IssuanceAttributes:
             nonce=nonce
         )
         blinded_commitment = bbs.create_blinded_commitment(commit_req)
-        self._commitment: bytes = blinded_commitment.commitment
-        self._blinding_factor: bytes = blinded_commitment.blinding_factor
-        self._proof: bytes = blinded_commitment.blind_sign_context
-        self._committed: bool = True
+        self._commitment = blinded_commitment.commitment
+        self._blinding_factor = blinded_commitment.blinding_factor
+        self._proof = blinded_commitment.blind_sign_context
+        self._committed = True
+
+    def produce_schema(self) -> CredentialSchema:
+        revealed_keys = [key for key, _ in self._raw_revealed]
+        hidden_keys = [key for key, _ in self._raw_hidden]
+        return CredentialSchema(revealed_attributes=revealed_keys, hidden_attributes=hidden_keys)
     
 
     def get_commitment(self):

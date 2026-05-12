@@ -15,7 +15,7 @@
     <form method="post" action="{{ url_for('issue_submit') }}" class="issue-form">
         <div class="form-group">
             <label for="issuer_name">Issuer</label>
-            <select name="issuer_name" id="issuer_name" required>
+            <select name="issuer_name" id="issuer_name" required onchange="onIssuerChange()">
                 <option value="">-- select issuer --</option>
                 {% for name in issuer_names %}
                 <option value="{{ name }}">{{ name }}</option>
@@ -28,23 +28,32 @@
             <input type="text" name="cred_name" id="cred_name" placeholder="e.g. student-card-1" required>
         </div>
 
+        <!-- Schema info banner (hidden until issuer selected) -->
+        <div id="schema-info" class="schema-info" style="display:none;">
+            <span class="schema-info-label">Schema:</span>
+            <span id="schema-type" class="schema-info-type"></span>
+            <span class="schema-info-sep">·</span>
+            <span id="schema-context" class="schema-info-context"></span>
+        </div>
+
         <div class="form-group">
             <label>Attributes</label>
             <div class="attr-note">
-                LinkSecret is auto-generated (hidden). Metadata fields (validUntil, revocationMaterial, metaHash) are handled internally.
+                Hidden attributes (e.g. LinkSecret) and metadata fields (validUntil, revocationMaterial, metaHash) are handled automatically.
             </div>
             <div id="attr-rows">
-                <div class="attr-row">
-                    <input type="text" name="attr_key" placeholder="key" required>
-                    <input type="text" name="attr_value" placeholder="value" required>
-                    <button type="button" class="btn btn-remove" onclick="this.parentElement.remove()">-</button>
-                </div>
+                <!-- Populated dynamically from schema -->
             </div>
-            <button type="button" class="btn btn-small" onclick="addRow()">+ Add Attribute</button>
+            <div id="freeform-controls" style="display:none;">
+                <button type="button" class="btn btn-small" onclick="addFreeRow()">+ Add Attribute</button>
+            </div>
+            <div id="no-schema-msg" class="attr-note" style="display:none;">
+                Select an issuer to load its credential schema.
+            </div>
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Execute Issuance Protocol</button>
+            <button type="submit" class="btn btn-primary" id="submit-btn" disabled>Execute Issuance Protocol</button>
             <a href="{{ url_for('dashboard') }}" class="btn btn-small">Cancel</a>
         </div>
     </form>
@@ -52,15 +61,65 @@
 </section>
 
 <script>
-function addRow() {
+// Schema data embedded from server (avoids extra fetch on page load)
+const ISSUER_SCHEMAS = {{ issuer_schemas | tojson }};
+
+function onIssuerChange() {
+    const select = document.getElementById('issuer_name');
+    const issuerName = select.value;
+    const container = document.getElementById('attr-rows');
+    const schemaInfo = document.getElementById('schema-info');
+    const freeformControls = document.getElementById('freeform-controls');
+    const noSchemaMsg = document.getElementById('no-schema-msg');
+    const submitBtn = document.getElementById('submit-btn');
+
+    container.innerHTML = '';
+
+    if (!issuerName) {
+        schemaInfo.style.display = 'none';
+        freeformControls.style.display = 'none';
+        noSchemaMsg.style.display = 'block';
+        submitBtn.disabled = true;
+        return;
+    }
+
+    const schema = ISSUER_SCHEMAS[issuerName];
+
+    if (schema && schema.revealed && schema.revealed.length > 0) {
+        // Schema-driven mode: fixed rows from schema
+        schemaInfo.style.display = 'flex';
+        document.getElementById('schema-type').textContent = schema.type;
+        document.getElementById('schema-context').textContent = schema.context;
+        freeformControls.style.display = 'none';
+        noSchemaMsg.style.display = 'none';
+
+        schema.revealed.forEach(function(key) {
+            const row = document.createElement('div');
+            row.className = 'attr-row';
+            row.innerHTML =
+                '<input type="text" name="attr_key" value="' + key + '" readonly class="attr-key-locked">' +
+                '<input type="text" name="attr_value" placeholder="value for ' + key + '" required>';
+            container.appendChild(row);
+        });
+    } else {
+        // No schema: fallback to freeform
+        schemaInfo.style.display = 'none';
+        freeformControls.style.display = 'block';
+        noSchemaMsg.style.display = 'none';
+        addFreeRow();
+    }
+
+    submitBtn.disabled = false;
+}
+
+function addFreeRow() {
     const container = document.getElementById('attr-rows');
     const row = document.createElement('div');
     row.className = 'attr-row';
-    row.innerHTML = `
-        <input type="text" name="attr_key" placeholder="key" required>
-        <input type="text" name="attr_value" placeholder="value" required>
-        <button type="button" class="btn btn-remove" onclick="this.parentElement.remove()">-</button>
-    `;
+    row.innerHTML =
+        '<input type="text" name="attr_key" placeholder="key" required>' +
+        '<input type="text" name="attr_value" placeholder="value" required>' +
+        '<button type="button" class="btn btn-remove" onclick="this.parentElement.remove()">-</button>';
     container.appendChild(row);
 }
 </script>

@@ -98,6 +98,7 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
         for issuer_name, entry in cache._cache.items():
             data = entry.issuer_data
             pk_hex = data.public_key.key.hex()
+            schema = data.schema
             issuers.append({
                 "name": issuer_name,
                 "pk_short": f"{pk_hex[:10]}...{pk_hex[-10:]}",
@@ -107,6 +108,10 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
                 "epoch_days": data.epoch_size_days,
                 "reissue_window_days": data.validity_window_days,
                 "obtained_at": entry.obtained_at,
+                "schema_type": schema.type if schema else None,
+                "schema_context": schema.context if schema else None,
+                "schema_revealed": schema.revealed_attributes if schema else [],
+                "schema_hidden": schema.hidden_attributes if schema else [],
             })
 
         return render_template(
@@ -133,12 +138,47 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
 
     # ── Issuance Form ────────────────────────────────────────────────
 
+    # Meta keys that build_commitment_append_meta handles automatically
+    _META_KEYS = {"validUntil", "revocationMaterial", "metaHash"}
+
     @app.route("/issue", methods=["GET"])
     def issue_form():
-        # Populate issuer dropdown from cache
+        # Build per-issuer schema data for the template
         cache = state.orch.entity.public_data_cache
-        issuer_names = list(cache._cache.keys())
-        return render_template("issue.html", issuer_names=issuer_names)
+        issuer_schemas = {}
+        for issuer_name, entry in cache._cache.items():
+            schema = entry.issuer_data.schema
+            if schema:
+                # Only include revealed attrs that the user fills in
+                user_revealed = [k for k in schema.revealed_attributes if k not in _META_KEYS]
+                issuer_schemas[issuer_name] = {
+                    "revealed": user_revealed,
+                    "hidden": schema.hidden_attributes,
+                    "type": schema.type,
+                    "context": schema.context,
+                }
+            else:
+                issuer_schemas[issuer_name] = None
+        return render_template("issue.html",
+                               issuer_names=list(issuer_schemas.keys()),
+                               issuer_schemas=issuer_schemas)
+
+    @app.route("/api/schema/<issuer_name>")
+    def get_schema(issuer_name):
+        """JSON endpoint for dynamic schema loading on issuer change."""
+        from flask import jsonify
+        cache = state.orch.entity.public_data_cache
+        entry = cache._cache.get(issuer_name)
+        if not entry or not entry.issuer_data.schema:
+            return jsonify(None)
+        schema = entry.issuer_data.schema
+        user_revealed = [k for k in schema.revealed_attributes if k not in _META_KEYS]
+        return jsonify({
+            "revealed": user_revealed,
+            "hidden": schema.hidden_attributes,
+            "type": schema.type,
+            "context": schema.context,
+        })
 
     @app.route("/issue", methods=["POST"])
     def issue_submit():

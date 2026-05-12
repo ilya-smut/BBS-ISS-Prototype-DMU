@@ -34,7 +34,8 @@ The Issuer generates BLS12-381 G2 keypairs, enforces nonce-based session freshne
 
 - **Key Generation**: Generates a BLS keypair from a 32-byte random seed at instantiation.
 - **Freshness Enforcement**: Issues a random 32-byte nonce per session, binding commitments to prevent replay.
-- **Blind Signing**: Verifies the Holder's blinded commitment proof, then computes a blind BBS+ signature over the combined revealed + committed attributes.
+- **Schema Management**: Manages a `CredentialSchema` (via `get_schema()` and `set_schema()`) which defines the credential types, contexts, and exact structural ordering of attribute keys during issuance.
+- **Blind Signing**: Verifies the Holder's blinded commitment proof, then computes a blind BBS+ signature over the combined revealed + committed attributes according to the schema.
 - **VC Construction**: Builds the `VerifiableCredential` skeleton, computes the deterministic `metaHash`, assigns epoch-aligned `validUntil` timestamps, and allocates revocation bitstring indices.
 - **Re-issuance**: Verifies the Holder's VP of an existing credential, checks temporal validity and revocation status, revokes the old index, and issues a renewed VC.
 - **Error Responses**: Catches internal failures (proof invalidity, capacity exhaustion, state violations) and returns structured `ErrorResponse` messages instead of propagating raw exceptions.

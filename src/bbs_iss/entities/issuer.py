@@ -2,6 +2,7 @@ import os
 import random
 import ursa_bbs_signatures as bbs
 import bbs_iss.interfaces.requests_api as api
+from bbs_iss.interfaces.requests_api import CredentialSchema
 import bbs_iss.utils.utils as utils
 from bbs_iss.entities.entity import Entity
 from bbs_iss.exceptions.exceptions import IssuerNotAvailable, FreshnessValueError, ProofValidityError, IssuerStateError, BitstringExhaustedError
@@ -108,6 +109,12 @@ class IssuerInstance(Entity):
     DEFAULT_EPOCH_SIZE_DAYS = 49
     DEFAULT_RE_ISSUANCE_WINDOW_DAYS = 7
     DEFAULT_BASELINE_DATE_STR = "2026-01-01T00:00:00Z"
+    DEFAULT_SCHEMA = CredentialSchema(
+        type="StudentCard",
+        context="https://example.org/contexts/student-card-v1",
+        revealed_attributes=["name", "lastName", "dateOfBirth", "studentId", "nameOfQualification", "fieldOfStudy", "languageOfInstruction", "mode", "enrollmentStatus", "validUntil", "revocationMaterial", "metaHash"],
+        hidden_attributes=["LinkSecret"]
+    )
     
     class State:
         def __init__(self):
@@ -149,6 +156,13 @@ class IssuerInstance(Entity):
         self.issuer_parameters = None
         self.baseline_date = None
         self.bitstring_manager = BitstringManager()
+        self.schema = self.DEFAULT_SCHEMA
+
+    def get_schema(self) -> CredentialSchema:
+        return self.schema
+
+    def set_schema(self, schema: CredentialSchema):
+        self.schema = schema
         
     @property
     def available(self) -> bool:
@@ -306,6 +320,8 @@ class IssuerInstance(Entity):
         vc = VerifiableCredential(
             issuer=issuer_name,
             credential_subject=attributes,
+            type=[self.schema.type],
+            context=[self.schema.context],
             proof=None # VC is not signed yet
         )
         if vc.META_HASH_KEY not in vc.credential_subject:
@@ -417,6 +433,8 @@ class IssuerInstance(Entity):
         vc = VerifiableCredential(
             issuer=issuer_name,
             credential_subject=attributes,
+            type=[self.schema.type],
+            context=[self.schema.context],
             proof=None
         )
         
@@ -500,7 +518,8 @@ class IssuerInstance(Entity):
             public_key=self.public_key,
             revocation_bitstring=self.bitstring_manager.get_revocation_bitstring_hex(),
             epoch_size_days=epoch_size,
-            validity_window_days=window_days
+            validity_window_days=window_days,
+            schema=self.schema
         )
         
         self.state.start_interaction(api.RequestType.REGISTER_ISSUER_DETAILS, None, pending_data=issuer_data)
@@ -517,7 +536,8 @@ class IssuerInstance(Entity):
             public_key=self.public_key,
             revocation_bitstring=self.bitstring_manager.get_revocation_bitstring_hex(),
             epoch_size_days=epoch_size,
-            validity_window_days=window_days
+            validity_window_days=window_days,
+            schema=self.schema
         )
         
         self.state.start_interaction(api.RequestType.UPDATE_ISSUER_DETAILS, None, pending_data=issuer_data)

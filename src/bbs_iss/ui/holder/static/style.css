@@ -346,6 +346,47 @@ select:focus {
     max-width: 180px;
 }
 
+.attr-key-locked {
+    color: var(--accent) !important;
+    border-color: var(--border) !important;
+    background: var(--bg) !important;
+    cursor: default;
+    font-weight: bold;
+}
+
+.schema-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border);
+}
+
+.schema-info-label {
+    color: var(--text-bright);
+    font-weight: bold;
+}
+
+.schema-info-type {
+    color: var(--accent);
+}
+
+.schema-info-sep {
+    color: var(--text-dim);
+}
+
+.schema-info-context {
+    color: var(--text-dim);
+    word-break: break-all;
+}
+
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .form-actions {
     display: flex;
     gap: 12px;

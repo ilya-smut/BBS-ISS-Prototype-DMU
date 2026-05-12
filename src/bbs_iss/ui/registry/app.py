@@ -44,6 +44,7 @@ def create_registry_ui(orch: RegistryOrchestrator, port: int = 8001) -> Flask:
         records = []
         for name, data in store.items():
             pk_hex = data.public_key.key.hex()
+            schema = data.schema
             records.append({
                 "name": name,
                 "pk_short": f"{pk_hex[:10]}...{pk_hex[-10:]}",
@@ -52,6 +53,10 @@ def create_registry_ui(orch: RegistryOrchestrator, port: int = 8001) -> Flask:
                 "bitstring_bits": len(data.revocation_bitstring) * 4,
                 "epoch_days": data.epoch_size_days,
                 "reissue_window_days": data.validity_window_days,
+                "schema_type": schema.type if schema else None,
+                "schema_context": schema.context if schema else None,
+                "schema_revealed": schema.revealed_attributes if schema else [],
+                "schema_hidden": schema.hidden_attributes if schema else [],
             })
         return render_template("dashboard.html", records=records)
 

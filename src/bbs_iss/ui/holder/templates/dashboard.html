@@ -58,7 +58,15 @@ Revocation Bits:    {{ iss.bitstring_bits }}
 Bitstring:          {{ iss.bitstring }}
 Epoch Size:         {{ iss.epoch_days }} days
 Re-issue Window:    {{ iss.reissue_window_days }} days
-Obtained At:        {{ iss.obtained_at }}</pre>
+Obtained At:        {{ iss.obtained_at }}
+{% if iss.schema_type %}
+Schema Type:        {{ iss.schema_type }}
+Schema Context:     {{ iss.schema_context }}
+Revealed Attrs:     {{ iss.schema_revealed | join(', ') }}
+Hidden Attrs:       {{ iss.schema_hidden | join(', ') }}
+{% else %}
+Schema:             Not advertised
+{% endif %}</pre>
             </div>
         </details>
         {% endfor %}

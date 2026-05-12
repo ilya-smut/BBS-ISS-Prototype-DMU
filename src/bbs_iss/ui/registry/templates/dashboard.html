@@ -24,7 +24,15 @@ Public Key:         {{ rec.pk_full }}
 Revocation Bits:    {{ rec.bitstring_bits }}
 Bitstring:          {{ rec.bitstring }}
 Epoch Size:         {{ rec.epoch_days }} days
-Re-issue Window:    {{ rec.reissue_window_days }} days</pre>
+Re-issue Window:    {{ rec.reissue_window_days }} days
+{% if rec.schema_type %}
+Schema Type:        {{ rec.schema_type }}
+Schema Context:     {{ rec.schema_context }}
+Revealed Attrs:     {{ rec.schema_revealed | join(', ') }}
+Hidden Attrs:       {{ rec.schema_hidden | join(', ') }}
+{% else %}
+Schema:             Not advertised
+{% endif %}</pre>
             </div>
         </details>
         {% endfor %}

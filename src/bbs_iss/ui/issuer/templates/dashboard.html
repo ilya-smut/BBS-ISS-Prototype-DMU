@@ -38,6 +38,73 @@
     </div>
 </section>
 
+<!-- ── Credential Schema ──────────────────────────────────────── -->
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Credential Schema</h2>
+    </div>
+
+    <!-- Current schema display -->
+    <div class="schema-block">
+        <div class="schema-meta">
+            <span class="schema-label">Type:</span>
+            <span class="schema-value">{{ config.schema_type }}</span>
+            <span class="schema-label">Context:</span>
+            <span class="schema-value schema-context">{{ config.schema_context }}</span>
+        </div>
+        <div class="schema-columns">
+            <div class="schema-col">
+                <span class="schema-col-header">Revealed ({{ config.schema_revealed|length }})</span>
+                <ol class="schema-list">
+                {% for attr in config.schema_revealed %}
+                    <li>{{ attr }}</li>
+                {% endfor %}
+                </ol>
+            </div>
+            <div class="schema-col">
+                <span class="schema-col-header">Hidden ({{ config.schema_hidden|length }})</span>
+                <ol class="schema-list schema-list-hidden">
+                {% for attr in config.schema_hidden %}
+                    <li>{{ attr }}</li>
+                {% endfor %}
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- New schema form -->
+    <details class="schema-editor">
+        <summary class="schema-editor-toggle">&#9998; Create New Schema</summary>
+        <form method="post" action="{{ url_for('update_schema') }}" class="schema-form">
+            <div class="schema-form-grid">
+                <label for="schema_type">Type</label>
+                <input type="text" name="schema_type" id="schema_type" placeholder="e.g. StudentCard" required>
+
+                <label for="schema_context">Context</label>
+                <input type="text" name="schema_context" id="schema_context" placeholder="auto-generated if empty">
+            </div>
+
+            <div class="schema-form-attrs">
+                <span class="schema-col-header">Revealed Attribute Keys</span>
+                <div class="attr-note">
+                    Metadata fields (validUntil, revocationMaterial, metaHash) and hidden attributes (LinkSecret) are appended automatically.
+                </div>
+                <div id="schema-attr-rows">
+                    <div class="attr-row">
+                        <input type="text" name="schema_attr_key" placeholder="attribute key" required>
+                        <button type="button" class="btn btn-remove" onclick="this.parentElement.remove()">-</button>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-small" onclick="addSchemaRow()">+ Add Attribute</button>
+            </div>
+
+            <div class="config-actions" style="padding-top: 12px;">
+                <button type="submit" class="btn btn-primary">Apply Schema</button>
+            </div>
+        </form>
+    </details>
+</section>
+
 <!-- ── Bitstring Status ──────────────────────────────────────── -->
 <section class="panel">
     <div class="panel-header">
@@ -121,4 +188,16 @@ credentialSubject:
     <div class="empty-state">No protocol trails recorded.</div>
     {% endif %}
 </section>
+
+<script>
+function addSchemaRow() {
+    const container = document.getElementById('schema-attr-rows');
+    const row = document.createElement('div');
+    row.className = 'attr-row';
+    row.innerHTML =
+        '<input type="text" name="schema_attr_key" placeholder="attribute key" required>' +
+        '<button type="button" class="btn btn-remove" onclick="this.parentElement.remove()">-</button>';
+    container.appendChild(row);
+}
+</script>
 {% endblock %}

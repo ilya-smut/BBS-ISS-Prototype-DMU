@@ -15,6 +15,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from bbs_iss.endpoints.orchestrator import IssuerOrchestrator
 from bbs_iss.endpoints.trail import RequestTrail
 import bbs_iss.interfaces.requests_api as api
+from bbs_iss.interfaces.requests_api import CredentialSchema
+from bbs_iss.interfaces.credential import VerifiableCredential
 
 
 class IssuedCredentialRecord:
@@ -121,6 +123,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
 
         # Configuration values
         params = entity.issuer_parameters or {"issuer": "Mock-Issuer"}
+        schema = entity.schema
         config = {
             "name": params.get("issuer", "Unknown"),
             "epoch_size_days": entity.epoch_size_days if entity.epoch_size_days is not None else entity.DEFAULT_EPOCH_SIZE_DAYS,
@@ -128,6 +131,10 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
             "baseline_date": entity.baseline_date if entity.baseline_date else entity.DEFAULT_BASELINE_DATE_STR,
             "pk_short": f"{entity.public_key.key.hex()[:10]}...{entity.public_key.key.hex()[-10:]}",
             "bitstring_status": entity.get_bitstring_status(),
+            "schema_type": schema.type,
+            "schema_context": schema.context,
+            "schema_revealed": schema.revealed_attributes,
+            "schema_hidden": schema.hidden_attributes,
         }
 
         # Issued credentials with live status
@@ -184,6 +191,51 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
             entity.set_baseline_date(baseline)
 
         flash("Configuration updated.", "success")
+        return redirect(url_for("dashboard"))
+
+    # ── Schema Update ────────────────────────────────────────────────
+
+    # Meta keys appended automatically by build_commitment_append_meta
+    _META_KEYS = [
+        VerifiableCredential.VALID_UNTIL_KEY,
+        VerifiableCredential.REVOCATION_MATERIAL_KEY,
+        VerifiableCredential.META_HASH_KEY,
+    ]
+    _DEFAULT_HIDDEN = ["LinkSecret"]
+
+    @app.route("/update-schema", methods=["POST"])
+    def update_schema():
+        entity = state.orch.entity
+
+        schema_type = request.form.get("schema_type", "").strip()
+        schema_context = request.form.get("schema_context", "").strip()
+        attr_keys = request.form.getlist("schema_attr_key")
+
+        if not schema_type:
+            flash("Schema type is required.", "error")
+            return redirect(url_for("dashboard"))
+
+        # Collect user-provided revealed keys (non-empty, deduplicated, preserving order)
+        revealed = []
+        seen = set()
+        for k in attr_keys:
+            k = k.strip()
+            if k and k not in seen and k not in _META_KEYS and k not in _DEFAULT_HIDDEN:
+                revealed.append(k)
+                seen.add(k)
+
+        # Auto-append meta fields at the end of revealed
+        revealed.extend(_META_KEYS)
+
+        new_schema = CredentialSchema(
+            type=schema_type,
+            context=schema_context or f"https://example.org/contexts/{schema_type}",
+            revealed_attributes=revealed,
+            hidden_attributes=list(_DEFAULT_HIDDEN),
+        )
+        entity.set_schema(new_schema)
+
+        flash(f"Schema updated to '{schema_type}' with {len(revealed)} revealed + {len(_DEFAULT_HIDDEN)} hidden attributes.", "success")
         return redirect(url_for("dashboard"))
 
     # ── Register / Update Registry ───────────────────────────────────

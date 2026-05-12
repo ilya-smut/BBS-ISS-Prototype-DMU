@@ -219,6 +219,16 @@ To prevent timeline-based correlation attacks, all credentials are aligned to a 
 
 ---
 
+### Schema-Driven Architecture
+
+The prototype enforces structural consistency using a standardized `CredentialSchema` model:
+
+- **Strict Attribute Ordering**: To maintain BBS+ cryptographic integrity, all credentials strictly separate and order revealed and hidden (`LinkSecret`) attributes within the message indices, preventing index misalignment during selective disclosure.
+- **Dynamic Inference**: `VerifiableCredential` and `VerifiablePresentation` objects dynamically infer their `type` and `@context` from the schema, ensuring forward-compatibility with any custom W3C formats without hardcoding.
+- **Schema Caching**: Issuers advertise their schema to the Registry. Holders cache this structural metadata and use it to dynamically render UI forms that automatically enforce the correct key structures for issuance requests.
+
+---
+
 ### Error Handling
 
 Instead of propagating raw exceptions, the Issuer returns structured `ErrorResponse` messages with typed error categories:
