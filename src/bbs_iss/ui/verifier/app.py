@@ -105,14 +105,54 @@ class VerifierAppState:
 
         # ── ABAC check ───────────────────────────────────────────
         if self._last_abac_policy:
-            abac_valid = True
+            abac_mismatches = []
             for attr, expected_val in self._last_abac_policy.items():
-                if (revealed_attrs or {}).get(attr) != expected_val:
-                    abac_valid = False
-                    break
-            result["abac_valid"] = abac_valid
+                actual_val = (revealed_attrs or {}).get(attr)
+                
+                if attr == "dateOfBirth":
+                    if not actual_val:
+                        abac_mismatches.append(attr)
+                        continue
+                    
+                    try:
+                        actual_date = datetime.strptime(actual_val, "%d-%m-%Y")
+                    except ValueError:
+                        abac_mismatches.append(attr)
+                        continue
+                        
+                    expected_clean = expected_val.replace(" ", "")
+                    import re
+                    match = re.match(r'^(<=|>=|<|>|==)?(\d{2}-\d{2}-\d{4})$', expected_clean)
+                    if not match:
+                        abac_mismatches.append(attr)
+                        continue
+                        
+                    op = match.group(1) or "=="
+                    try:
+                        expected_date = datetime.strptime(match.group(2), "%d-%m-%Y")
+                    except ValueError:
+                        abac_mismatches.append(attr)
+                        continue
+                        
+                    if op == "<" and not (actual_date < expected_date):
+                        abac_mismatches.append(attr)
+                    elif op == "<=" and not (actual_date <= expected_date):
+                        abac_mismatches.append(attr)
+                    elif op == ">" and not (actual_date > expected_date):
+                        abac_mismatches.append(attr)
+                    elif op == ">=" and not (actual_date >= expected_date):
+                        abac_mismatches.append(attr)
+                    elif op == "==" and not (actual_date == expected_date):
+                        abac_mismatches.append(attr)
+                else:
+                    if actual_val != expected_val:
+                        abac_mismatches.append(attr)
+            
+            result["abac_valid"] = len(abac_mismatches) == 0
+            result["abac_mismatches"] = abac_mismatches
         else:
             result["abac_valid"] = None
+            result["abac_mismatches"] = []
 
         # ── Overall verdict ──────────────────────────────────────
         checks = [result["crypto_valid"], result["all_fields_present"]]

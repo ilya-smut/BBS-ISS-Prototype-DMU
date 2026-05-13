@@ -4,52 +4,20 @@ This directory provides standalone bootstrap functions and Docker entrypoint scr
 
 ## `flask_bootstrap.py` — Bootstrap Functions
 
-Each function creates a single entity instance, wires it with `FlaskEndpoint` handles to its protocol counterparts, starts a `FlaskListener`, and returns the orchestrator. All parameters default to `localhost` with `DefaultPorts`, enabling zero-argument calls for single-machine use.
+Each function creates a single entity instance, wires it with `FlaskEndpoint` handles to its protocol counterparts, starts a `FlaskListener`, and returns the orchestrator. 
 
-### `holder_bootstrap(...) → HolderOrchestrator`
+### Technical Implementation: Multi-Threaded Hosting
+To enable both the Protocol Listener and the Web UI to run in a single process, the bootstrap functions utilize Python's `threading` module:
+```python
+# Protocol Listener runs in a background daemon thread
+listener = FlaskListener(entity, port=protocol_port, orch=orch)
+listener.start()
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `holder_port` | `5004` | Listener bind port |
-| `issuer_base` | `http://localhost` | Issuer server base URL |
-| `issuer_port` | `5001` | Issuer server port |
-| `verifier_base` | `http://localhost` | Verifier server base URL |
-| `verifier_port` | `5002` | Verifier server port |
-| `registry_base` | `http://localhost` | Registry server base URL |
-| `registry_port` | `5003` | Registry server port |
-
-The Holder listener receives the orchestrator reference for VP_REQUEST queuing.
-
-### `issuer_bootstrap(...) → IssuerOrchestrator`
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `name` | `"Test-University"` | Issuer identity (pushed via `set_issuer_parameters()`) |
-| `issuer_port` | `5001` | Listener bind port |
-| `registry_base` | `http://localhost` | Registry server base URL |
-| `registry_port` | `5003` | Registry server port |
-
-The Issuer listener does **not** receive an orchestrator — issuance is handled reactively via `entity.process_request()`.
-
-### `verifier_bootstrap(...) → VerifierOrchestrator`
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `verifier_port` | `5002` | Listener bind port |
-| `holder_base` | `http://localhost` | Holder server base URL |
-| `holder_port` | `5004` | Holder server port |
-| `registry_base` | `http://localhost` | Registry server base URL |
-| `registry_port` | `5003` | Registry server port |
-
-The Verifier listener receives the orchestrator reference for FORWARD_VP handling.
-
-### `registry_bootstrap(...) → RegistryOrchestrator`
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `registry_port` | `5003` | Listener bind port |
-
-The Registry has no outbound endpoints — it is purely reactive.
+# Web UI also runs in a background daemon thread
+ui_app = create_..._ui(orch, port=ui_port)
+Thread(target=ui_app.run, kwargs={"port": ui_port, "debug": False, "use_reloader": False}, daemon=True).start()
+```
+This allows each entity to act as a self-contained microservice that exposes both a machine-to-machine API and a human-to-machine dashboard simultaneously.
 
 ---
 
@@ -57,10 +25,10 @@ The Registry has no outbound endpoints — it is purely reactive.
 
 Each `run_*.py` script is a minimal entrypoint designed to be invoked via `python -m bbs_iss.demo.scripts.run_<entity>`. They:
 
-1. Read network topology from **environment variables** (e.g., `REGISTRY_BASE`, `ISSUER_PORT`).
+1. Read network topology and UI ports from **environment variables** (e.g., `REGISTRY_BASE`, `ISSUER_UI_PORT`).
 2. Call the corresponding bootstrap function.
-3. Keep the main thread alive so the daemon Flask thread persists.
-4. Handle `SIGTERM` for graceful container shutdown.
+3. **Main Loop**: Keeps the main thread alive with a `while True: time.sleep(1)` loop, as both the listener and UI are running in daemon threads.
+4. **Signal Handling**: Implements a `SIGTERM` handler to ensure graceful container shutdown.
 
 | Script | Entity | Environment Variables |
 |--------|--------|----------------------|

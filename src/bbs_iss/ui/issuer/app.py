@@ -238,6 +238,11 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
         flash(f"Schema updated to '{schema_type}' with {len(revealed)} revealed + {len(_DEFAULT_HIDDEN)} hidden attributes.", "success")
         return redirect(url_for("dashboard"))
 
+    @app.route("/api/credentials-count")
+    def api_credentials_count():
+        from flask import jsonify
+        return jsonify({"count": len(state.issued_credentials)})
+
     # ── Register / Update Registry ───────────────────────────────────
 
     @app.route("/register", methods=["POST"])

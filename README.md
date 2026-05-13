@@ -34,6 +34,15 @@ A working proof-of-concept Python prototype for a **Privacy-Preserving Verifiabl
 - `flask` ≥ 3.0 (networked mode)
 - `requests` ≥ 2.31 (networked mode)
 
+### Default Port Assignments
+
+| Entity | Protocol Port | UI Port |
+|--------|---------------|---------|
+| Registry | 5003 | 8001 |
+| Issuer | 5001 | 8002 |
+| Verifier | 5002 | 8003 |
+| Holder | 5004 | 8004 |
+
 ## Installation
 
 An automated setup script is provided to initialize submodules, build the virtual environment, and install all dependencies (including the vendored FFI cryptography library).
@@ -56,7 +65,21 @@ source .venv/bin/activate
 pytest testing/unit/
 ```
 
-### Running the Networked Demo
+### Running the UI Demo (Full System)
+
+To launch the complete ecosystem with all 4 entities, their protocol listeners, and their browser-based dashboards:
+
+```bash
+python testing/ui_check.py
+```
+
+This script bootstraps the entire network on `localhost`. Once running, you can access the dashboards at:
+- **Issuer**: [http://localhost:8002](http://localhost:8002)
+- **Holder**: [http://localhost:8004](http://localhost:8004)
+- **Verifier**: [http://localhost:8003](http://localhost:8003)
+- **Registry**: [http://localhost:8001](http://localhost:8001)
+
+### Running the CLI Demo (Networked)
 
 ```bash
 python testing/flask_demo.py
@@ -82,6 +105,10 @@ The system follows a **three-layer architecture**, separating cryptographic logi
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
+│                       Browser UI Layer                           │
+│  Registry (8001) · Issuer (8002) · Verifier (8003) · Holder (8004) │
+│  Real-time state polling, dynamic forms, consent dashboards     │
+├─────────────────────────────────────────────────────────────────┤
 │                     Orchestration Layer                          │
 │  HolderOrchestrator · IssuerOrchestrator · VerifierOrchestrator  │
 │  Multi-step flow logic, consent checkpoints, VP timeout          │
@@ -100,6 +127,8 @@ The system follows a **three-layer architecture**, separating cryptographic logi
 - **Entities** are cryptographic state machines with no transport awareness.
 - **Endpoints / Listeners** provide pluggable transport (swap `LocalLoopbackEndpoint` for `FlaskEndpoint` to move from in-process simulation to real HTTP).
 - **Orchestrators** compose multi-step protocol flows from entity method calls and endpoint exchanges.
+- **UI Apps** provide browser-based dashboards that interact with orchestrators via background polling and asynchronous events.
+
 
 ---
 
@@ -157,6 +186,21 @@ Verifier                                      Holder
 ```
 
 The **bound nonce** cryptographically ties the VP's metadata envelope to the Verifier's challenge, preventing cross-session replay. Both parties independently compute this value from the same inputs.
+
+---
+
+### Attribute-Based Access Control (ABAC)
+
+The system implements an ABAC engine at the Verifier layer to enforce policy-level constraints on disclosed attributes:
+
+- **Exact Matching**: Standard string comparison for most attributes (e.g., `degree == "Computer Science"`).
+- **Predicate-Based Matching (Date of Birth)**: Special handling for the `dateOfBirth` attribute using strict `DD-MM-YYYY` formatting. Supports chronological comparison operators:
+  - `<` (Older than)
+  - `<=` (At least)
+  - `>` (Younger than)
+  - `>=` (At most)
+  - `==` (Exact date match)
+- **Implementation**: Predicates are parsed using regular expressions and evaluated using Python's `datetime` module. Mismatched attributes are explicitly flagged in the verification results, allowing the Verifier to reject presentations even if the cryptographic BBS+ proof is valid.
 
 ---
 

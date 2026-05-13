@@ -10,9 +10,12 @@
     <div class="present-form">
         <div class="form-group">
             <label>Requested Fields</label>
-            <div class="requested-fields">
+            <div class="requested-fields" id="requested-fields-container">
                 {% for attr in requested_attributes %}
-                <span class="requested-field">{{ attr }}</span>
+                <div class="requested-field-item">
+                    <span class="requested-field-name">{{ attr }}</span>
+                    <span class="requested-field-value" id="val_{{ attr }}">—</span>
+                </div>
                 {% endfor %}
             </div>
         </div>
@@ -28,7 +31,8 @@
                     {% for cred in credentials %}
                     <option value="{{ cred.name }}"
                             data-has-all="{{ cred.has_all_fields | tojson }}"
-                            data-missing="{{ cred.missing_fields | join(', ') }}">
+                            data-missing="{{ cred.missing_fields | join(', ') }}"
+                            data-values="{{ cred.attr_values | tojson | forceescape }}">
                         {{ cred.name }} ({{ cred.issuer }})
                         {% if cred.revoked %} [REVOKED]{% endif %}
                         {% if cred.expired %} [EXPIRED]{% endif %}
@@ -78,12 +82,35 @@ function onCredentialChange() {
     if (!select.value) {
         compatInfo.style.display = 'none';
         approveBtn.disabled = true;
+        
+        // Reset values
+        const valuesSpans = document.querySelectorAll('.requested-field-value');
+        valuesSpans.forEach(span => {
+            span.textContent = '—';
+            span.classList.remove('missing');
+        });
         return;
     }
 
     compatInfo.style.display = 'block';
     const hasAll = option.dataset.hasAll === 'true';
     const missing = option.dataset.missing;
+    const values = JSON.parse(option.dataset.values || '{}');
+    
+    // Update requested fields values
+    const requestedAttrs = {{ requested_attributes | tojson }};
+    requestedAttrs.forEach(attr => {
+        const span = document.getElementById('val_' + attr);
+        if (span) {
+            if (attr in values) {
+                span.textContent = values[attr];
+                span.classList.remove('missing');
+            } else {
+                span.textContent = 'Missing';
+                span.classList.add('missing');
+            }
+        }
+    });
 
     if (hasAll) {
         compatOk.style.display = 'block';

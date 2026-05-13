@@ -4,38 +4,33 @@ This subdirectory contains the Flask-based web interface for the **Holder** enti
 
 ## Architecture & Integration
 
-The application is initialized via `create_holder_ui(orch: HolderOrchestrator, port=8004)` in `app.py`.
+The application is initialized via `create_holder_ui(orch: HolderOrchestrator, port=8004)` in `app.py`. 
 
-Unlike the Issuer, the Holder UI does not need to heavily intercept orchestrator events, as the `HolderInstance` naturally stores credentials in its own `entity.credentials` dictionary. The UI reads directly from this dictionary to render the wallet.
-
-### State Management (`HolderAppState`)
-Maintains a reference to the orchestrator and keeps a localized list of `RequestTrail` logs to display protocol execution trails to the user.
+### Logic Specifics: Two-Phase Presentation
+The Holder UI implements a manual consent checkpoint for the Presentation protocol. This is decoupled into two phases:
+1. **Request Queueing**: When the Verifier sends a `VPRequest` over HTTP, the Holder's `FlaskListener` (on port 5004) intercepts it. Because it is a `VP_REQUEST`, the listener delegates to the `HolderOrchestrator`, which appends it to a `pending_requests` list.
+2. **Asynchronous Notification**: The UI's short-polling mechanism (3s) detects the addition to the list and refreshes the dashboard.
+3. **Consent & Execution**: When the user clicks "Present", the UI gathers the selected `vc_name` and the `vp_request` object and calls `orch.execute_presentation()`, which computes the ZKP and POSTs the response back to the Verifier.
 
 ## Endpoints & Workflows
 
 ### 1. Dashboard / Wallet (`GET /`)
-Renders `dashboard.html`, serving as the primary wallet interface.
-- **My Credentials**: Iterates through `entity.credentials` and displays all held credentials.
-  - Dynamically calculates the current validity state (Valid, Expired, or Revoked). 
-  - Revocation is checked locally by referencing the Issuer's bitstring from the `PublicDataCache`.
-- **Renewal Mechanism**: If a credential is valid but its `validUntil` timestamp falls within the issuer's advertised re-issuance window, a "Renew Credential" button appears, linking to the `/reissue` route.
-- **Known Issuers**: Displays a list of all issuers stored in the local cache, alongside their configured parameters and `CredentialSchema`. 
+- **My Credentials**: Iterates through `entity.credentials`.
+- **Validity Check Logic**: The UI calculates validity by checking the `validUntil` field against `datetime.now(timezone.utc)`.
+- **Revocation Check Logic**: The UI looks up the issuer's public data in the `PublicDataCache`. It retrieves the bitstring and performs a bitwise check on the index stored in the credential's `revocationMaterial`.
 
-### 2. Registry Synchronization (`POST /sync-registry`)
-Triggers a bulk fetch from the central registry, repopulating the local `PublicDataCache` with the latest issuer public keys, revocation bitstrings, and schemas.
+### 2. Presentation Consent (`GET /present/<request_id>`)
+This page provides **User Transparency**. 
+- **Implementation Detail**: The route retrieves the specific `VPRequest` from the orchestrator's queue. It then scans the Holder's wallet for a credential matching the requested issuer. 
+- **Internal Data Disclosure**: To help the user make an informed decision, the template extracts the actual values from the `credential_subject` dictionary of the *local* credential. This allows the user to see the private values that will be disclosed (or used to generate the ZKP) before the protocol proceeds.
 
 ### 3. Schema-Driven Issuance (`GET /issue`, `POST /issue`)
-The credential request workflow strictly enforces schema compliance.
-- **`GET /issue`**: The route extracts the cached schemas for all known issuers and serializes them to JSON via Jinja (`ISSUER_SCHEMAS`). 
-- **Dynamic JavaScript Forms**: In `issue.html`, when the user selects an Issuer from the dropdown, `onIssuerChange()` parses the embedded JSON schema. It dynamically generates form input rows for exactly the revealed attribute keys defined in the schema, making the keys themselves read-only.
-- **`POST /issue`**: Collects the submitted values. Metadata fields (`validUntil`, `revocationMaterial`, `metaHash`) are automatically excluded from the UI inputs because `IssuanceAttributes.build_commitment_append_meta()` appends them internally. The route auto-generates the `LinkSecret` hidden attribute and executes the blind-issuance protocol via `state.orch.execute_issuance()`.
-
-### 4. Re-issuance (`POST /reissue`)
-Triggered from the dashboard when a credential nears expiration. 
-- Automatically creates a new `IssuanceAttributes` object, porting over all attribute values from the old credential, while generating a fresh `LinkSecret`.
-- Executes `orch.execute_re_issuance()`, generating a VP of the old credential and a new commitment simultaneously.
+The issuance workflow uses dynamic JavaScript to enforce schema compliance.
+- **Dynamic JS Injection**: The backend serializes all cached `CredentialSchema` objects into a global `ISSUER_SCHEMAS` constant in the HTML.
+- **DOM Manipulation**: When the user changes the issuer dropdown, `onIssuerChange()` clears the attribute container and reconstructs it. It maps the schema's `revealed_attributes` keys to locked input labels, ensuring the user only provides values for the keys the issuer expects.
 
 ## Templates & Assets
-- `templates/dashboard.html`: The wallet view.
-- `templates/issue.html`: The dynamic, schema-driven issuance request form.
-- `static/style.css`: Terminal aesthetic styling, including specific visual treatments for locked schema keys (`.attr-key-locked`) and schema metadata banners.
+- `templates/dashboard.html`: Wallet view with 3s auto-refresh polling.
+- `templates/present.html`: Two-column consent view (Requested Fields vs. Internal Values).
+- `templates/issue.html`: Dynamic schema-aware form.
+

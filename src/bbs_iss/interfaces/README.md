@@ -114,6 +114,15 @@ All request/response objects implement:
 
 ---
 
+### Technical Implementation: Attribute Ordering
+BBS+ signatures are computed over a vector of messages. In this prototype, this vector is deterministically mapped from the `IssuanceAttributes` object:
+1. **Revealed attributes** (e.g., `name`, `degree`) are assigned the lowest indices (0, 1, 2...).
+2. **Metadata attributes** (`validUntil`, `revocationMaterial`, `metaHash`) are automatically appended after the user-defined revealed attributes.
+3. **Hidden attributes** (e.g., `LinkSecret`) are assigned the highest indices.
+- **Constraint**: This ordering must be identical during issuance, ZKP generation, and ZKP verification. The `CredentialSchema.compare_full()` method is used to enforce this structural identity across different entities.
+
+---
+
 ## `credential.py` — Credential & Presentation Models
 
 ### `VerifiableCredential`
@@ -127,6 +136,11 @@ A mock W3C Verifiable Credential for BBS+ signatures.
 - **`prepare_verification_request(pub_key)`** — Builds a `bbs.VerifyRequest` by re-computing the `metaHash` and assembling the message list.
 - **`prep_body_for_vp(credential, revealed_keys)`** — Creates a stripped-down copy of the credential containing only the disclosed attributes.
 
+### Technical Implementation: JSON Key Preservation
+BBS+ message indices depend on a stable attribute order. Standard Python/Flask JSON libraries often sort keys alphabetically, which would break the signature.
+- **Design Choice**: The `to_dict()` and `to_json()` methods use `sort_keys=False`.
+- **Constraint**: All entities must preserve the insertion order of dictionaries representing the `credentialSubject`.
+
 ### `VerifiablePresentation`
 
 W3C-style VP envelope that carries the ZKP proof and a selectively-disclosed credential.
@@ -139,3 +153,10 @@ W3C-style VP envelope that carries the ZKP proof and a selectively-disclosed cre
 - **`prepare_verification_request(pub_key, nonce, commitment=None)`** — Reconstructs the bound nonce and builds a `bbs.VerifyProofRequest` for proof verification. Derives the total message count directly from the proof bytes.
 
 Both classes support full `to_dict()`/`from_dict()`/`to_json()`/`from_json()` serialization with proper hex encoding of binary proof fields.
+
+### Technical Implementation: Bound Nonces
+To prevent Proof-Replay attacks, the VP computes an effective nonce that binds the ZKP to the presentation metadata:
+```python
+effective_nonce = blake2b(VerifierNonce + VP_Metadata_Digest)
+```
+The `VP_Metadata_Digest` includes the hash of the VP envelope and the embedded VC envelope. This ensures that a proof generated for Verifier A cannot be intercepted and presented to Verifier B, as the `VerifierNonce` (and potentially the VP context) would differ.

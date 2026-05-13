@@ -16,14 +16,14 @@ Standardised URL paths for Flask entity servers.
 
 ### `DefaultPorts`
 
-Default port assignments for networked Flask demos.
+Default port assignments for networked Flask demos and browser dashboards.
 
-| Constant | Value | Entity |
-|----------|-------|--------|
-| `ISSUER` | `5001` | Issuer server |
-| `VERIFIER` | `5002` | Verifier server |
-| `REGISTRY` | `5003` | Registry server |
-| `HOLDER` | `5004` | Holder server |
+| Entity | Protocol Port | UI Port |
+|--------|---------------|---------|
+| **Issuer** | `5001` | `8002` |
+| **Verifier** | `5002` | `8003` |
+| **Registry** | `5003` | `8001` |
+| **Holder** | `5004` | `8004` |
 
 ### `DefaultEntityNames`
 

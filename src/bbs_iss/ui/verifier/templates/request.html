@@ -12,7 +12,7 @@
         No issuers known. <a href="{{ url_for('dashboard') }}">Go to Dashboard</a> and sync the registry first.
     </div>
     {% else %}
-    <form method="post" action="{{ url_for('request_submit') }}" class="request-form">
+    <form method="post" action="{{ url_for('request_submit') }}" class="request-form" id="request-form">
         <div class="form-group">
             <label for="issuer_name">Select Issuer</label>
             <select name="issuer_name" id="issuer_name" required onchange="onIssuerChange()">
@@ -135,7 +135,11 @@ function onIssuerChange() {
                 abacInput.type = 'text';
                 abacInput.name = 'abac_' + key;
                 abacInput.className = 'abac-input';
-                abacInput.placeholder = 'Expected value...';
+                if (key === 'dateOfBirth') {
+                    abacInput.placeholder = 'e.g., >= 01-01-2000';
+                } else {
+                    abacInput.placeholder = 'Expected value...';
+                }
                 abacInput.disabled = true; // Disabled until checkbox is checked
                 abacInput.style.display = 'none'; // Hidden until ABAC mode is enabled
                 
@@ -173,5 +177,20 @@ function toggleAbacInputs() {
         if (!isEnabled) input.value = '';
     });
 }
+
+document.getElementById('request-form').addEventListener('submit', function(e) {
+    if (document.getElementById('enable_abac').checked) {
+        const dobInput = document.querySelector('input[name="abac_dateOfBirth"]');
+        if (dobInput && !dobInput.disabled && dobInput.value.trim() !== '') {
+            const val = dobInput.value.replace(/\s+/g, '');
+            const dobRegex = /^(<=|>=|<|>|==)?\d{2}-\d{2}-\d{4}$/;
+            if (!dobRegex.test(val)) {
+                alert("Invalid ABAC format for dateOfBirth. Please use format like '>= 01-01-2000'.");
+                e.preventDefault();
+                return false;
+            }
+        }
+    }
+});
 </script>
 {% endblock %}

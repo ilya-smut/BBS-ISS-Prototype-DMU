@@ -200,4 +200,25 @@ function addSchemaRow() {
     container.appendChild(row);
 }
 </script>
+
+<script>
+    // We do NOT want to interrupt the user if they are editing the schema or config.
+    // So we'll only reload if they aren't focused on any input.
+    const CURRENT_COUNT = {{ credentials|length }};
+    setInterval(async () => {
+        try {
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            const isEditing = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+            if (isEditing) return; // Don't interrupt
+
+            const res = await fetch('{{ url_for("api_credentials_count") }}');
+            const data = await res.json();
+            if (data.count !== CURRENT_COUNT) {
+                window.location.reload();
+            }
+        } catch (e) {
+            console.error("Auto-refresh error", e);
+        }
+    }, 3000);
+</script>
 {% endblock %}

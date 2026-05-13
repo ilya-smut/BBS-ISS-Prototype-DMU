@@ -8,7 +8,7 @@ managing registered issuer records.
 import os
 from threading import Thread
 
-from flask import Flask, render_template, redirect, url_for, flash
+from flask import Flask, render_template, redirect, url_for, flash, jsonify
 
 from bbs_iss.endpoints.orchestrator import RegistryOrchestrator
 
@@ -59,6 +59,10 @@ def create_registry_ui(orch: RegistryOrchestrator, port: int = 8001) -> Flask:
                 "schema_hidden": schema.hidden_attributes if schema else [],
             })
         return render_template("dashboard.html", records=records)
+
+    @app.route("/api/records-count")
+    def api_records_count():
+        return jsonify({"count": len(orch.entity._store)})
 
     # ── Delete Record ────────────────────────────────────────────────
 

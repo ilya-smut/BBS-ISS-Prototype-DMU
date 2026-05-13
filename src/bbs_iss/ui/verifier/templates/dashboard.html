@@ -137,7 +137,7 @@ Schema:             Not advertised
                     <table>
                         {% for key, value in res.revealed_attrs.items() %}
                         {% set expected = res.abac_policy.get(key) if res.abac_policy else none %}
-                        {% set mismatch = expected is not none and value != expected %}
+                        {% set mismatch = key in res.get('abac_mismatches', []) %}
                         <tr>
                             <td>{{ key }}</td>
                             <td class="{% if mismatch %}check-fail{% endif %}">

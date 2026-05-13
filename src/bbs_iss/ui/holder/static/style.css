@@ -545,18 +545,34 @@ select:focus {
 
 .requested-fields {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-direction: column;
+    gap: 4px;
     margin-top: 4px;
 }
 
-.requested-field {
+.requested-field-item {
+    display: flex;
+    align-items: center;
     background: var(--bg-input);
     border: 1px solid var(--border);
-    color: var(--accent);
-    padding: 3px 10px;
     font-size: 12px;
+    padding: 4px 8px;
+}
+
+.requested-field-name {
+    color: var(--accent);
     font-weight: bold;
+    min-width: 150px;
+}
+
+.requested-field-value {
+    color: var(--text-bright);
+    word-break: break-all;
+}
+
+.requested-field-value.missing {
+    color: var(--red);
+    font-style: italic;
 }
 
 .compat-ok {

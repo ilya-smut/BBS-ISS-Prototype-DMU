@@ -6,41 +6,35 @@ This subdirectory contains the Flask-based web interface for the **Issuer** enti
 
 The application is initialized via `create_issuer_ui(orch: IssuerOrchestrator, port=8002)` in `app.py`.
 
-### State Management (`IssuerAppState`)
-Since Flask routes handle stateless HTTP requests but the underlying protocol is stateful, the UI maintains an `IssuerAppState` object that holds a reference to the orchestrator. It also tracks:
-- `trails`: A list of `RequestTrail` objects showing protocol execution logs.
-- `issued_credentials`: A list of `IssuedCredentialRecord` objects representing every credential this issuer has signed.
-
-### Orchestrator Hooking
-To track issued credentials without deeply coupling the UI to the `IssuerInstance`, the `create_issuer_ui` function implements a **decorator hook** around the entity's `process_request` method. 
-If the underlying entity returns a `ForwardVCResponse`, the UI intercepts it, extracts the credential subject, and logs it to `issued_credentials` before passing it back to the orchestrator.
+### Technical Implementation: Orchestrator Hooking
+Since the core `IssuerInstance` is designed to be a "pure" cryptographic state machine, it does not keep a permanent log of issued credentials. To provide this functionality in the UI, we use a **Decorator Pattern** to hook the entity's `process_request` method:
+```python
+original_process = entity.process_request
+def hooked_process(request):
+    response = original_process(request)
+    if isinstance(response, ForwardVCResponse):
+        # UI layer intercepts the signed VC and logs it
+        state.add_credential(response.credential)
+    return response
+entity.process_request = hooked_process
+```
 
 ## Endpoints & Workflows
 
 ### 1. Dashboard (`GET /`)
-Renders `dashboard.html`. Provides an overview of:
-- **Configuration**: Current epoch size, re-issuance window, baseline date, and public key.
 - **Credential Schema**: The structural metadata defining what credentials this issuer creates.
-- **Bitstring Status**: A live ASCII-art visualization of the current epoch's revocation bitstring.
-- **Issued Credentials**: Expandable records of all issued credentials showing validity, expiration, and revocation status.
-- **Protocol Trails**: Diagnostic logs for executed workflows.
+- **Bitstring Status**: A live ASCII-art visualization of the current epoch's revocation bitstring. The UI reads the raw bitstring from the `BitstringManager` and parses it into a grid for the dashboard.
+- **Auto-Refresh Logic**: The dashboard polls `/api/credentials-count` every 3 seconds. To prevent UI flickers or data loss, it only reloads if the user is not currently focused on a schema input or configuration form.
 
-### 2. Configuration & Registry
-- `POST /configure`: Updates the entity's configuration parameters (epoch size, baseline date, etc.).
-- `POST /register` & `POST /update-registry`: Triggers the orchestrator to broadcast the issuer's current `IssuerPublicData` (including its public key, bitstring, and schema) to the central registry.
-
-### 3. Schema Management (`POST /update-schema`)
+### 2. Schema Management (`POST /update-schema`)
 Allows the issuer to completely redefine their `CredentialSchema`.
-- Takes a schema `type`, `context`, and an ordered list of custom revealed attribute keys.
-- **Automatic Handling**: The route automatically enforces BBS+ ordering rules. It appends the required BBS+ metadata fields (`validUntil`, `revocationMaterial`, `metaHash`) to the end of the revealed attributes list, and automatically manages the hidden `LinkSecret` attribute.
-- Once submitted, it creates a new `CredentialSchema` object and injects it into the `IssuerInstance`. The issuer should then click "Update Registry" to broadcast this new schema to Holders.
+- **Structural Integrity**: The route enforces the BBS+ message indexing requirement. It automatically appends the hidden `LinkSecret` and revealed metadata fields (`validUntil`, `revocationMaterial`, `metaHash`) to the user's custom fields, ensuring that the resulting `IssuanceAttributes` object has the correct internal indices for cryptographic signing.
 
-### 4. Revocation (`POST /revoke/<index>`)
-When an administrator clicks "Revoke" on an issued credential, this route:
-1. Calculates the specific bit index from the credential's `revocationMaterial` hex.
-2. Calls `entity.revoke_index()` to flip the bit in the `BitstringManager`.
-3. Automatically triggers a registry update (`orch.update_registry()`) so that Verifiers and Holders immediately see the revoked status.
+### 3. Revocation (`POST /revoke/<index>`)
+- **Workflow**: When an administrator clicks "Revoke", the UI calculates the bit index from the hex-encoded `revocationMaterial`. It then calls `entity.revoke_index()`, which updates the local `BitstringManager`. 
+- **Registry Synchronization**: Immediately following the local update, the UI triggers `orch.update_registry()` to ensure that the global registry reflects the revocation in real-time.
 
 ## Templates & Assets
-- `templates/dashboard.html`: The single-page dashboard utilizing HTML5 `<details>` tags for expandable rows.
-- `static/style.css`: A terminal-inspired dark-mode stylesheet shared stylistically across all entities. Includes specific CSS classes (`.schema-editor`, `.attr-row`) for the dynamic schema builder.
+- `templates/dashboard.html`: Single-page view using `<details>` tags for expandable JSON payloads.
+- `static/style.css`: Shared terminal aesthetic with specific classes for the ASCII bitstring grid (`.bit-grid`).
+

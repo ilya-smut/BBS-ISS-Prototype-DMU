@@ -33,11 +33,15 @@ Each cached record is stored as a `CacheEntry` dataclass containing:
 | `get_cache_info()` | — | `str` | Formatted summary of all cached issuers |
 | `check_bit_index(issuer, bit_index_hex)` | `str`, `str` | `bool` | Revocation status check via cached bitstring. Raises `IssuerNotFoundInCacheError` if not cached. |
 
-### Cache-First Resolution Pattern
+### Cache-First Resolution Pattern (Technical Detail)
 
-Entities follow a consistent resolution pattern:
+The "Cache-First, Registry-Second" resolution is implemented as a **Stateful Suspension** pattern in `holder.py` and `verifier.py`:
 
-1. Check local `PublicDataCache` for the Issuer's metadata.
-2. **Cache hit** → proceed immediately with cached data.
-3. **Cache miss** → suspend the current interaction, emit a `GetIssuerDetailsRequest`, and return it to the orchestrator (or caller) for delivery to the Registry.
-4. When the `IssuerDetailsResponse` arrives, update the cache and automatically resume the suspended interaction.
+1. **Detection**: During `issuance_request()` (Holder) or `complete_presentation()` (Verifier), the entity calls `self.cache.get(issuer_name)`.
+2. **Suspension**: If the cache returns `None`, the entity:
+   - Sets its internal state to a "suspended" mode (e.g., `State.pending_issuer_name = issuer_name` or `State.queued_response = vp`).
+   - Short-circuits the method by returning a `GetIssuerDetailsRequest`.
+3. **External Action**: The Orchestrator receives the request, delivers it to the Registry, and receives an `IssuerDetailsResponse`.
+4. **Resumption**: The Orchestrator passes the response back into the entity's `process_request()`. The entity:
+   - Updates its local cache with the new data.
+   - **Auto-Trigger**: Detects the suspended state, pulls the parked parameters/VP, and re-invokes the original logic (e.g., `_complete_presentation_internal()`), ensuring the protocol flow resumes seamlessly from where it stalled.

@@ -292,6 +292,11 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
             if issuer_data and rev_index:
                 revoked = issuer_data.check_revocation_status(rev_index)
 
+            attr_values = {}
+            for attr in requested:
+                if attr in vc.credential_subject:
+                    attr_values[attr] = str(vc.credential_subject[attr])
+
             credentials.append({
                 "name": name,
                 "issuer": vc.issuer,
@@ -299,6 +304,7 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
                 "revoked": revoked,
                 "has_all_fields": len(missing) == 0,
                 "missing_fields": sorted(missing),
+                "attr_values": attr_values,
             })
 
         return render_template(

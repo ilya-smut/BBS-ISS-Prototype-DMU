@@ -41,4 +41,19 @@ Schema:             Not advertised
     <div class="empty-state">No issuers registered.</div>
     {% endif %}
 </section>
+
+<script>
+    const CURRENT_COUNT = {{ records|length }};
+    setInterval(async () => {
+        try {
+            const res = await fetch('{{ url_for("api_records_count") }}');
+            const data = await res.json();
+            if (data.count !== CURRENT_COUNT) {
+                window.location.reload();
+            }
+        } catch (e) {
+            console.error("Auto-refresh error", e);
+        }
+    }, 3000);
+</script>
 {% endblock %}
