@@ -36,6 +36,17 @@
             <div class="attr-note">
                 Choose which credential fields the Holder must disclose. Requesting validUntil and revocationMaterial enables expiration and revocation checks.
             </div>
+
+            <div class="abac-toggle" id="abac-toggle-container" style="display:none; margin-bottom: 12px; padding: 10px; border: 1px solid var(--border); background: var(--bg-card);">
+                <label class="attr-checkbox" style="color: var(--purple); font-weight: bold;">
+                    <input type="checkbox" name="enable_abac" id="enable_abac" onchange="toggleAbacInputs()">
+                    <span class="attr-label">Enable ABAC Mode (Attribute-Based Access Control)</span>
+                </label>
+                <div class="attr-note" style="margin-top: 4px; margin-left: 24px;">
+                    Specify expected values for attributes. Only specified values will be enforced.
+                </div>
+            </div>
+
             <div id="attr-checkboxes" class="attr-checkboxes">
                 <!-- Populated dynamically from schema -->
             </div>
@@ -68,11 +79,14 @@ function onIssuerChange() {
     const schemaInfo = document.getElementById('schema-info');
     const noSchemaMsg = document.getElementById('no-schema-msg');
     const submitBtn = document.getElementById('submit-btn');
+    const abacToggle = document.getElementById('abac-toggle-container');
 
     container.innerHTML = '';
+    document.getElementById('enable_abac').checked = false;
 
     if (!issuerName) {
         schemaInfo.style.display = 'none';
+        abacToggle.style.display = 'none';
         noSchemaMsg.style.display = 'block';
         submitBtn.disabled = true;
         return;
@@ -82,11 +96,15 @@ function onIssuerChange() {
 
     if (schema && schema.revealed && schema.revealed.length > 0) {
         schemaInfo.style.display = 'flex';
+        abacToggle.style.display = 'block';
         document.getElementById('schema-type').textContent = schema.type;
         document.getElementById('schema-context').textContent = schema.context;
         noSchemaMsg.style.display = 'none';
 
         schema.revealed.forEach(function(key) {
+            const itemWrapper = document.createElement('div');
+            itemWrapper.className = 'attr-item-wrapper';
+
             const label = document.createElement('label');
             label.className = 'attr-checkbox';
 
@@ -110,12 +128,32 @@ function onIssuerChange() {
                 label.appendChild(hint);
             }
 
-            container.appendChild(label);
+            itemWrapper.appendChild(label);
+
+            if (key !== 'validUntil' && key !== 'revocationMaterial') {
+                const abacInput = document.createElement('input');
+                abacInput.type = 'text';
+                abacInput.name = 'abac_' + key;
+                abacInput.className = 'abac-input';
+                abacInput.placeholder = 'Expected value...';
+                abacInput.disabled = true; // Disabled until checkbox is checked
+                abacInput.style.display = 'none'; // Hidden until ABAC mode is enabled
+                
+                cb.addEventListener('change', function() {
+                    abacInput.disabled = !this.checked;
+                    if (!this.checked) abacInput.value = '';
+                });
+
+                itemWrapper.appendChild(abacInput);
+            }
+
+            container.appendChild(itemWrapper);
         });
 
         submitBtn.disabled = true;  // No fields checked yet
     } else {
         schemaInfo.style.display = 'none';
+        abacToggle.style.display = 'none';
         noSchemaMsg.style.display = 'block';
         noSchemaMsg.textContent = 'This issuer has no advertised schema.';
         submitBtn.disabled = true;
@@ -125,6 +163,15 @@ function onIssuerChange() {
 function updateSubmitState() {
     const checked = document.querySelectorAll('input[name="requested_attributes"]:checked');
     document.getElementById('submit-btn').disabled = (checked.length === 0);
+}
+
+function toggleAbacInputs() {
+    const isEnabled = document.getElementById('enable_abac').checked;
+    const inputs = document.querySelectorAll('.abac-input');
+    inputs.forEach(input => {
+        input.style.display = isEnabled ? 'block' : 'none';
+        if (!isEnabled) input.value = '';
+    });
 }
 </script>
 {% endblock %}

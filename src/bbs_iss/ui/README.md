@@ -55,12 +55,14 @@ Provides an interface for requesting verifiable presentations from Holders and i
 - **Presentation Request Form**:
   - Select an issuer from the cache to load its `CredentialSchema`.
   - Schema fields appear as checkboxes; the user selects which fields to request disclosure of.
+  - **ABAC Mode (Attribute-Based Access Control)**: Can be toggled to specify *expected values* for requested attributes. Supports partial policies (specifying values for only some fields).
   - Special hints indicate that `validUntil` enables expiration checks and `revocationMaterial` enables revocation checks.
   - Submitting sends a `VPRequest` to the Holder's listener and transitions the Verifier to an "awaiting" state.
-- **Active Request Panel**: While the Verifier awaits a response, the dashboard displays the pending request with its requested fields and a pulsing status indicator. Auto-refreshes every 3 seconds.
+- **Active Request Panel**: While the Verifier awaits a response, the dashboard displays the pending request with its requested fields (and expected values if ABAC is enabled) and a pulsing status indicator. Auto-refreshes every 3 seconds.
 - **Presentation Results**: Each verification result shows an enriched breakdown:
   - **Cryptographic Proof (BBS+ ZKP)**: Whether the zero-knowledge proof verified against the issuer's public key and bound nonce.
   - **Field Completeness**: Whether all requested attributes were present in the disclosed set.
+  - **ABAC Policy Match**: Whether the explicitly specified expected values matched the disclosed attributes perfectly.
   - **Expiration Check**: Whether `validUntil` is in the future relative to the presentation timestamp. Shown as N/A if `validUntil` was not requested.
   - **Revocation Check**: Whether the credential's bit index is active in the issuer's bitstring. Only performed when `revocationMaterial` was among the disclosed fields, and preempted by fetching the issuer's latest data from the registry. Shown as N/A if not disclosed.
   - **Overall Verdict**: All applicable checks must pass for a VALID result.

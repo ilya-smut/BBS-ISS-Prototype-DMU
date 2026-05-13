@@ -55,7 +55,12 @@ Schema:             Not advertised
         </p>
         <ul class="pending-attrs">
             {% for attr in pending.requested_attributes %}
-            <li>{{ attr }}</li>
+            <li>
+                {{ attr }}
+                {% if pending.abac_policy and attr in pending.abac_policy %}
+                <span class="abac-expected" style="color: var(--text-dim); font-size: 11px; margin-left: 8px;">[Expected: {{ pending.abac_policy[attr] }}]</span>
+                {% endif %}
+            </li>
             {% endfor %}
         </ul>
         <p style="margin-top: 8px;">
@@ -115,6 +120,14 @@ Schema:             Not advertised
                                 {% if res.revocation_valid is none %}N/A — not disclosed{% elif res.revocation_valid %}&#10003; PASS{% else %}&#10007; FAIL — revoked{% endif %}
                             </td>
                         </tr>
+                        {% if res.abac_valid is not none %}
+                        <tr>
+                            <td>ABAC Policy Match</td>
+                            <td class="{% if res.abac_valid %}check-pass{% else %}check-fail{% endif %}">
+                                {% if res.abac_valid %}&#10003; PASS{% else %}&#10007; FAIL — mismatch{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
                     </table>
                 </div>
 
@@ -123,9 +136,16 @@ Schema:             Not advertised
                     <h4>Disclosed Fields</h4>
                     <table>
                         {% for key, value in res.revealed_attrs.items() %}
+                        {% set expected = res.abac_policy.get(key) if res.abac_policy else none %}
+                        {% set mismatch = expected is not none and value != expected %}
                         <tr>
                             <td>{{ key }}</td>
-                            <td>{{ value }}</td>
+                            <td class="{% if mismatch %}check-fail{% endif %}">
+                                {{ value }}
+                                {% if expected is not none %}
+                                <br><span class="abac-expected" style="font-size: 10px; color: var(--text-dim);">[Expected: {{ expected }}]</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </table>

@@ -525,6 +525,41 @@ select:focus {
     font-style: italic;
 }
 
+.attr-item-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+}
+
+.attr-item-wrapper:last-child {
+    border-bottom: none;
+}
+
+.abac-input {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-bright);
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    width: 100%;
+    max-width: 300px;
+    margin-left: 24px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.abac-input:focus {
+    border-color: var(--purple);
+}
+
+.abac-input:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
 .form-actions {
     display: flex;
     gap: 12px;

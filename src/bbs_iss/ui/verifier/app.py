@@ -31,6 +31,7 @@ class VerifierAppState:
         self.presentation_results: list[dict] = []
         # Track what we last requested so enrichment knows the context
         self._last_requested_attributes: list[str] = []
+        self._last_abac_policy: dict[str, str] = {}
         self._last_results_count: int = 0
 
     def add_trail(self, trail: RequestTrail):
@@ -68,6 +69,7 @@ class VerifierAppState:
             "all_fields_present": is_valid,  # verify_vp checks completeness
             "revealed_attrs": revealed_attrs or {},
             "requested_attrs": list(self._last_requested_attributes),
+            "abac_policy": dict(self._last_abac_policy),
             "issuer_name": issuer_name,
             "timestamp": datetime.now(timezone.utc).isoformat(
                 timespec="seconds"
@@ -77,6 +79,7 @@ class VerifierAppState:
         if not is_valid:
             result["expiration_valid"] = None
             result["revocation_valid"] = None
+            result["abac_valid"] = None
             result["overall_valid"] = False
             return result
 
@@ -100,12 +103,25 @@ class VerifierAppState:
         else:
             result["revocation_valid"] = None  # Not checkable
 
+        # ── ABAC check ───────────────────────────────────────────
+        if self._last_abac_policy:
+            abac_valid = True
+            for attr, expected_val in self._last_abac_policy.items():
+                if (revealed_attrs or {}).get(attr) != expected_val:
+                    abac_valid = False
+                    break
+            result["abac_valid"] = abac_valid
+        else:
+            result["abac_valid"] = None
+
         # ── Overall verdict ──────────────────────────────────────
         checks = [result["crypto_valid"], result["all_fields_present"]]
         if result["expiration_valid"] is not None:
             checks.append(result["expiration_valid"])
         if result["revocation_valid"] is not None:
             checks.append(result["revocation_valid"])
+        if result["abac_valid"] is not None:
+            checks.append(result["abac_valid"])
         result["overall_valid"] = all(checks)
 
         return result
@@ -173,6 +189,7 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
                 freshness_hex = (entity_state.freshness or b"").hex()
                 pending = type("PendingRequest", (), {
                     "requested_attributes": entity_state.attributes or [],
+                    "abac_policy": state._last_abac_policy,
                     "nonce": type("Nonce", (), {"hex": lambda self: freshness_hex})(),
                 })()
 
@@ -258,8 +275,19 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
             flash("Verifier is already awaiting a presentation response.", "error")
             return redirect(url_for("dashboard"))
 
+        # Build ABAC policy
+        abac_policy = {}
+        if request.form.get("enable_abac") == "on":
+            for attr in requested_attributes:
+                if attr in ["validUntil", "revocationMaterial"]:
+                    continue
+                expected_val = request.form.get(f"abac_{attr}", "").strip()
+                if expected_val:
+                    abac_policy[attr] = expected_val
+
         # Track what we requested for result enrichment
         state._last_requested_attributes = list(requested_attributes)
+        state._last_abac_policy = abac_policy
 
         try:
             trail, vp_request = state.orch.send_presentation_request(
