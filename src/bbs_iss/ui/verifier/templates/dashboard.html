@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Verifier Dashboard{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Known Issuers</h2>
+        <form method="post" action="{{ url_for('sync_registry') }}" class="inline-form">
+            <button type="submit" class="btn btn-small">Sync Registry</button>
+        </form>
+    </div>
+    {% if issuers %}
+    <div class="table-wrap">
+        {% for iss in issuers %}
+        <details class="issuer-row-detail">
+            <summary class="issuer-row">
+                <span class="issuer-name">{{ iss.name }}</span>
+                <span class="issuer-pk">{{ iss.pk_short }}</span>
+                <span class="issuer-ts">{{ iss.obtained_at }}</span>
+            </summary>
+            <div class="cred-detail">
+                <pre>Issuer Name:        {{ iss.name }}
+Public Key:         {{ iss.pk_full }}
+Revocation Bits:    {{ iss.bitstring_bits }}
+Bitstring:          {{ iss.bitstring }}
+Epoch Size:         {{ iss.epoch_days }} days
+Re-issue Window:    {{ iss.reissue_window_days }} days
+Obtained At:        {{ iss.obtained_at }}
+{% if iss.schema_type %}
+Schema Type:        {{ iss.schema_type }}
+Schema Context:     {{ iss.schema_context }}
+Revealed Attrs:     {{ iss.schema_revealed | join(', ') }}
+Hidden Attrs:       {{ iss.schema_hidden | join(', ') }}
+{% else %}
+Schema:             Not advertised
+{% endif %}</pre>
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">Cache empty. Click "Sync Registry" to fetch issuers.</div>
+    {% endif %}
+</section>
+
+{% if pending %}
+<section class="panel panel-pending">
+    <div class="panel-header">
+        <h2>&#9618; Active Request</h2>
+        <span class="status-awaiting">&#9679; AWAITING RESPONSE</span>
+    </div>
+    <div class="pending-info">
+        <p>
+            <span class="pending-label">Requested Fields:</span>
+        </p>
+        <ul class="pending-attrs">
+            {% for attr in pending.requested_attributes %}
+            <li>{{ attr }}</li>
+            {% endfor %}
+        </ul>
+        <p style="margin-top: 8px;">
+            <span class="pending-label">Nonce:</span>
+            <span class="pending-value" style="font-size: 11px;">{{ pending.nonce.hex()[:24] }}...</span>
+        </p>
+    </div>
+</section>
+{% endif %}
+
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Presentation Results</h2>
+        <span class="badge">{{ results|length }}</span>
+    </div>
+    {% if results %}
+    <div class="table-wrap">
+        {% for res in results %}
+        <details class="result-row">
+            <summary>
+                <div class="result-summary">
+                    <span class="result-verdict {% if res.overall_valid %}verdict-pass{% else %}verdict-fail{% endif %}">
+                        {% if res.overall_valid %}&#10003; VALID{% else %}&#10007; INVALID{% endif %}
+                    </span>
+                    <span class="result-issuer">{{ res.issuer_name }}</span>
+                    <span class="result-ts">{{ res.timestamp }}</span>
+                </div>
+            </summary>
+            <div class="result-detail">
+                <div class="result-checks">
+                    <table>
+                        <tr>
+                            <th>Check</th>
+                            <th>Result</th>
+                        </tr>
+                        <tr>
+                            <td>Cryptographic Proof (BBS+ ZKP)</td>
+                            <td class="{% if res.crypto_valid %}check-pass{% else %}check-fail{% endif %}">
+                                {% if res.crypto_valid %}&#10003; PASS{% else %}&#10007; FAIL{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>All Requested Fields Present</td>
+                            <td class="{% if res.all_fields_present %}check-pass{% else %}check-fail{% endif %}">
+                                {% if res.all_fields_present %}&#10003; PASS{% else %}&#10007; FAIL{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Expiration (validUntil in future)</td>
+                            <td class="{% if res.expiration_valid is none %}check-na{% elif res.expiration_valid %}check-pass{% else %}check-fail{% endif %}">
+                                {% if res.expiration_valid is none %}N/A — not disclosed{% elif res.expiration_valid %}&#10003; PASS{% else %}&#10007; FAIL — expired{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Revocation (bitstring index)</td>
+                            <td class="{% if res.revocation_valid is none %}check-na{% elif res.revocation_valid %}check-pass{% else %}check-fail{% endif %}">
+                                {% if res.revocation_valid is none %}N/A — not disclosed{% elif res.revocation_valid %}&#10003; PASS{% else %}&#10007; FAIL — revoked{% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                {% if res.revealed_attrs %}
+                <div class="result-fields">
+                    <h4>Disclosed Fields</h4>
+                    <table>
+                        {% for key, value in res.revealed_attrs.items() %}
+                        <tr>
+                            <td>{{ key }}</td>
+                            <td>{{ value }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No presentation results yet.</div>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Protocol Trails</h2>
+        <span class="badge">{{ trails|length }}</span>
+    </div>
+    {% if trails %}
+    <div class="table-wrap">
+        {% for trail in trails %}
+        <details class="trail-row">
+            <summary>
+                <span class="trail-status {% if trail.status == 'COMPLETED' %}status-ok{% else %}status-fail{% endif %}">
+                    {% if trail.status == "COMPLETED" %}&#10003;{% else %}&#10007;{% endif %}
+                </span>
+                <span class="trail-protocol">{{ trail.protocol }}</span>
+                <span class="trail-status-text">{{ trail.status }}</span>
+                {% if trail.completed_at %}
+                <span class="trail-ts">{{ trail.completed_at }}</span>
+                {% endif %}
+                {% if trail.error %}
+                <span class="trail-error">{{ trail.error }}</span>
+                {% endif %}
+            </summary>
+            <div class="trail-detail">
+                <pre>{{ trail.print_trail(verbose=True) }}</pre>
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No protocol trails recorded.</div>
+    {% endif %}
+</section>
+
+<script>
+// Auto-refresh: poll for new verification results
+(function() {
+    let knownCount = {{ results|length }};
+    let wasAwaiting = {{ 'true' if pending else 'false' }};
+
+    setInterval(function() {
+        fetch('{{ url_for("api_verification_results") }}')
+            .then(r => r.json())
+            .then(data => {
+                // Reload if new results arrived or awaiting state changed
+                if (data.count !== knownCount || data.awaiting !== wasAwaiting) {
+                    location.reload();
+                }
+            })
+            .catch(() => {});
+    }, 3000);
+})();
+</script>
+{% endblock %}

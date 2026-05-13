@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   Terminal-aesthetic stylesheet for BBS-ISS Holder UI
+   Terminal-aesthetic stylesheet for BBS-ISS Verifier UI
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
@@ -14,6 +14,7 @@
     --green:        #3fb950;
     --red:          #f85149;
     --yellow:       #d29922;
+    --purple:       #bc8cff;
     --font-mono:    "Cascadia Mono", "Fira Code", "JetBrains Mono", "Consolas", monospace;
 }
 
@@ -50,7 +51,7 @@ nav {
 }
 
 .logo {
-    color: var(--accent);
+    color: var(--purple);
     font-weight: bold;
     font-size: 14px;
 }
@@ -141,23 +142,23 @@ main {
     color: var(--accent);
 }
 
-/* ── Credential Rows ────────────────────────────────────────── */
+/* ── Expandable Rows ────────────────────────────────────────── */
 
-.credential-row,
+.issuer-row-detail,
 .trail-row,
-.issuer-row-detail {
+.result-row {
     border-bottom: 1px solid var(--border);
 }
 
-.credential-row:last-child,
+.issuer-row-detail:last-child,
 .trail-row:last-child,
-.issuer-row-detail:last-child {
+.result-row:last-child {
     border-bottom: none;
 }
 
-.credential-row summary,
+.issuer-row-detail summary,
 .trail-row summary,
-.issuer-row-detail summary {
+.result-row summary {
     padding: 10px 16px;
     cursor: pointer;
     display: flex;
@@ -167,61 +168,29 @@ main {
     transition: background 0.1s;
 }
 
-.credential-row summary:hover,
+.issuer-row-detail summary:hover,
 .trail-row summary:hover,
-.issuer-row-detail summary:hover {
+.result-row summary:hover {
     background: var(--bg-input);
 }
 
-.credential-row summary::-webkit-details-marker,
+.issuer-row-detail summary::-webkit-details-marker,
 .trail-row summary::-webkit-details-marker,
-.issuer-row-detail summary::-webkit-details-marker {
+.result-row summary::-webkit-details-marker {
     display: none;
 }
 
-.cred-name,
-.trail-protocol {
-    color: var(--accent);
-    font-weight: bold;
-    min-width: 160px;
-}
-
-.cred-issuer {
-    color: var(--text);
-    min-width: 160px;
-}
-
-.cred-expiry {
-    color: var(--text-dim);
-}
-
-.cred-status {
-    font-size: 11px;
-    font-weight: bold;
-    min-width: 100px;
-}
-
-.status-valid {
-    color: var(--green);
-}
-
-.status-expired {
-    color: var(--yellow);
-}
-
-.status-revoked {
-    color: var(--red);
-}
-
 .cred-detail,
-.trail-detail {
+.trail-detail,
+.result-detail {
     padding: 12px 16px;
     background: var(--bg);
     border-top: 1px solid var(--border);
 }
 
 .cred-detail pre,
-.trail-detail pre {
+.trail-detail pre,
+.result-detail pre {
     white-space: pre-wrap;
     word-break: break-all;
     color: var(--text);
@@ -260,6 +229,12 @@ main {
 
 /* ── Trail Status ───────────────────────────────────────────── */
 
+.trail-protocol {
+    color: var(--accent);
+    font-weight: bold;
+    min-width: 160px;
+}
+
 .trail-status {
     font-size: 14px;
     width: 20px;
@@ -291,9 +266,164 @@ main {
     margin-left: auto;
 }
 
+/* ── Pending Request Panel ──────────────────────────────────── */
+
+.panel-pending {
+    border-color: var(--yellow);
+}
+
+.pending-info {
+    padding: 14px 16px;
+}
+
+.pending-info p {
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
+.pending-info .pending-label {
+    color: var(--text-dim);
+    min-width: 140px;
+    display: inline-block;
+}
+
+.pending-info .pending-value {
+    color: var(--text-bright);
+}
+
+.pending-attrs {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0 0;
+}
+
+.pending-attrs li {
+    color: var(--accent);
+    font-size: 12px;
+    padding: 2px 0;
+}
+
+.pending-attrs li::before {
+    content: "› ";
+    color: var(--text-dim);
+}
+
+.status-awaiting {
+    color: var(--yellow);
+    font-weight: bold;
+    font-size: 11px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ── Verification Results ───────────────────────────────────── */
+
+.result-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.result-verdict {
+    font-weight: bold;
+    font-size: 12px;
+    min-width: 80px;
+}
+
+.verdict-pass {
+    color: var(--green);
+}
+
+.verdict-fail {
+    color: var(--red);
+}
+
+.result-issuer {
+    color: var(--text);
+    min-width: 140px;
+}
+
+.result-ts {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-left: auto;
+}
+
+.result-checks {
+    margin: 10px 0;
+}
+
+.result-checks table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.result-checks th {
+    text-align: left;
+    color: var(--text-dim);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    font-weight: normal;
+}
+
+.result-checks td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.check-pass {
+    color: var(--green);
+    font-weight: bold;
+}
+
+.check-fail {
+    color: var(--red);
+    font-weight: bold;
+}
+
+.check-na {
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.result-fields {
+    margin: 10px 0;
+}
+
+.result-fields h4 {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-bottom: 6px;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.result-fields table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.result-fields td {
+    padding: 3px 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.result-fields td:first-child {
+    color: var(--accent);
+    font-weight: bold;
+    min-width: 180px;
+}
+
 /* ── Forms ──────────────────────────────────────────────────── */
 
-.issue-form {
+.request-form {
     padding: 16px;
 }
 
@@ -335,25 +465,6 @@ select:focus {
     border-color: var(--accent);
 }
 
-.attr-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 6px;
-    align-items: center;
-}
-
-.attr-row input {
-    max-width: 180px;
-}
-
-.attr-key-locked {
-    color: var(--accent) !important;
-    border-color: var(--border) !important;
-    background: var(--bg) !important;
-    cursor: default;
-    font-weight: bold;
-}
-
 .schema-info {
     display: flex;
     align-items: center;
@@ -382,9 +493,36 @@ select:focus {
     word-break: break-all;
 }
 
-.btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+/* ── Checkboxes ─────────────────────────────────────────────── */
+
+.attr-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.attr-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.attr-checkbox input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.attr-checkbox .attr-label {
+    color: var(--text);
+}
+
+.attr-checkbox .attr-meta-hint {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-style: italic;
 }
 
 .form-actions {
@@ -415,12 +553,12 @@ select:focus {
 }
 
 .btn-primary {
-    border-color: var(--accent);
-    color: var(--accent);
+    border-color: var(--purple);
+    color: var(--purple);
 }
 
 .btn-primary:hover {
-    background: var(--accent);
+    background: var(--purple);
     color: var(--bg);
 }
 
@@ -429,168 +567,13 @@ select:focus {
     font-size: 11px;
 }
 
-.btn-remove {
-    padding: 4px 8px;
-    font-size: 14px;
-    color: var(--red);
-    border-color: var(--red);
-}
-
-.btn-remove:hover {
-    background: var(--red);
-    color: var(--bg);
-}
-
-.btn-renew {
-    padding: 4px 10px;
-    font-size: 11px;
-    color: var(--yellow);
-    border-color: var(--yellow);
-    margin-left: auto;
-}
-
-.btn-renew:hover {
-    background: var(--yellow);
-    color: var(--bg);
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .inline-form {
     display: inline;
-}
-
-/* ── Pending Request Panel ──────────────────────────────────── */
-
-.panel-pending {
-    border-color: var(--yellow);
-}
-
-.badge-pending {
-    background: var(--yellow);
-    color: var(--bg);
-    border-color: var(--yellow);
-    font-weight: bold;
-}
-
-.request-card {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-}
-
-.request-card:last-child {
-    border-bottom: none;
-}
-
-.request-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-}
-
-.request-card-label {
-    color: var(--accent);
-    font-weight: bold;
-    font-size: 12px;
-}
-
-.status-awaiting {
-    color: var(--yellow);
-    font-weight: bold;
-    font-size: 11px;
-    animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.request-card-body {
-    margin-bottom: 10px;
-}
-
-.pending-label {
-    color: var(--text-dim);
-    font-size: 12px;
-}
-
-.pending-attrs {
-    list-style: none;
-    padding: 0;
-    margin: 4px 0 0 0;
-}
-
-.pending-attrs li {
-    color: var(--accent);
-    font-size: 12px;
-    padding: 2px 0;
-}
-
-.pending-attrs li::before {
-    content: "› ";
-    color: var(--text-dim);
-}
-
-.request-card-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-/* ── Consent Form ──────────────────────────────────────────── */
-
-.present-form {
-    padding: 16px;
-}
-
-.requested-fields {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 4px;
-}
-
-.requested-field {
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    color: var(--accent);
-    padding: 3px 10px;
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.compat-ok {
-    color: var(--green);
-    font-size: 12px;
-    padding: 8px 0;
-}
-
-.compat-missing {
-    color: var(--yellow);
-    font-size: 12px;
-    padding: 8px 0;
-}
-
-/* ── Consent Buttons ───────────────────────────────────────── */
-
-.btn-approve {
-    border-color: var(--green);
-    color: var(--green);
-}
-
-.btn-approve:hover {
-    background: var(--green);
-    color: var(--bg);
-}
-
-.btn-decline {
-    border-color: var(--red);
-    color: var(--red);
-}
-
-.btn-decline:hover {
-    background: var(--red);
-    color: var(--bg);
 }
 
 /* ── Footer ─────────────────────────────────────────────────── */

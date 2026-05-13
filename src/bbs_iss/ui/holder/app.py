@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from threading import Thread
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 from bbs_iss.endpoints.orchestrator import HolderOrchestrator
 from bbs_iss.endpoints.trail import RequestTrail
@@ -114,11 +114,15 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
                 "schema_hidden": schema.hidden_attributes if schema else [],
             })
 
+        # Pending VP requests from the orchestrator
+        pending_requests = state.orch.get_pending_requests()
+
         return render_template(
             "dashboard.html",
             credentials=credentials,
             trails=state.trails,
             issuers=issuers,
+            pending_requests=pending_requests,
         )
 
     # ── Registry Sync ────────────────────────────────────────────────
@@ -243,6 +247,110 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
         except Exception as e:
             flash(f"Re-issuance error: {e}", "error")
 
+        return redirect(url_for("dashboard"))
+
+    # ── Pending Request Polling ───────────────────────────────────────
+
+    @app.route("/api/pending-requests")
+    def api_pending_requests():
+        """JSON endpoint for auto-refresh polling of incoming VP requests."""
+        return jsonify({"count": len(state.orch.pending_requests)})
+
+    # ── Presentation Consent ─────────────────────────────────────────
+
+    @app.route("/present/<int:req_index>", methods=["GET"])
+    def present_form(req_index):
+        pending = state.orch.pending_requests
+        if req_index < 0 or req_index >= len(pending):
+            flash("Invalid request index.", "error")
+            return redirect(url_for("dashboard"))
+
+        vp_request = pending[req_index]
+        requested = set(vp_request.requested_attributes)
+
+        # Build credential list with compatibility info
+        credentials = []
+        for name, (vc, pub_key) in state.orch.entity.credentials.items():
+            available_fields = set(vc.credential_subject.keys())
+            missing = requested - available_fields
+            # Also exclude metaHash and LinkSecret from "missing" since
+            # they are internal and should never be requested
+            internal = {"metaHash", "LinkSecret"}
+            missing = missing - internal
+
+            expiry_str = vc.credential_subject.get("validUntil", "")
+            try:
+                from datetime import datetime, timezone
+                expiry = datetime.fromisoformat(expiry_str.replace("Z", "+00:00"))
+                expired = datetime.now(timezone.utc) > expiry
+            except (ValueError, TypeError):
+                expired = False
+
+            revoked = False
+            rev_index = vc.credential_subject.get("revocationMaterial", "")
+            issuer_data = state.orch.entity.public_data_cache.get(vc.issuer)
+            if issuer_data and rev_index:
+                revoked = issuer_data.check_revocation_status(rev_index)
+
+            credentials.append({
+                "name": name,
+                "issuer": vc.issuer,
+                "expired": expired,
+                "revoked": revoked,
+                "has_all_fields": len(missing) == 0,
+                "missing_fields": sorted(missing),
+            })
+
+        return render_template(
+            "present.html",
+            req_index=req_index,
+            requested_attributes=vp_request.requested_attributes,
+            credentials=credentials,
+        )
+
+    @app.route("/present/<int:req_index>", methods=["POST"])
+    def present_submit(req_index):
+        pending = state.orch.pending_requests
+        if req_index < 0 or req_index >= len(pending):
+            flash("Invalid request index.", "error")
+            return redirect(url_for("dashboard"))
+
+        vc_name = request.form.get("vc_name", "").strip()
+        if not vc_name:
+            flash("A credential must be selected.", "error")
+            return redirect(url_for("present_form", req_index=req_index))
+
+        vp_request = pending[req_index]
+
+        try:
+            trail, forward_vp = state.orch.execute_presentation(
+                vp_request=vp_request,
+                vc_name=vc_name,
+                always_hidden_keys=["LinkSecret"],
+            )
+            state.add_trail(trail)
+
+            if trail.status == "COMPLETED":
+                flash(
+                    f"Presentation sent successfully using '{vc_name}'.",
+                    "success",
+                )
+            else:
+                flash(f"Presentation failed: {trail.error}", "error")
+        except Exception as e:
+            flash(f"Presentation error: {e}", "error")
+
+        return redirect(url_for("dashboard"))
+
+    @app.route("/decline/<int:req_index>", methods=["POST"])
+    def decline(req_index):
+        pending = state.orch.pending_requests
+        if req_index < 0 or req_index >= len(pending):
+            flash("Invalid request index.", "error")
+            return redirect(url_for("dashboard"))
+
+        pending.pop(req_index)
+        flash("Presentation request declined.", "success")
         return redirect(url_for("dashboard"))
 
     # ── Start server on daemon thread ────────────────────────────────

@@ -35,6 +35,44 @@
     {% endif %}
 </section>
 
+{% if pending_requests %}
+<section class="panel panel-pending">
+    <div class="panel-header">
+        <h2>&#9618; Pending Presentation Requests</h2>
+        <span class="badge badge-pending">{{ pending_requests|length }}</span>
+    </div>
+    <div class="table-wrap">
+        {% for req in pending_requests %}
+        <div class="request-card">
+            <div class="request-card-header">
+                <span class="request-card-label">Request #{{ loop.index }}</span>
+                <span class="status-awaiting">&#9679; AWAITING CONSENT</span>
+            </div>
+            <div class="request-card-body">
+                <span class="pending-label">Requested Fields:</span>
+                <ul class="pending-attrs">
+                    {% for attr in req.requested_attributes %}
+                    <li>{{ attr }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="request-card-actions">
+                <a href="{{ url_for('present_form', req_index=loop.index0) }}" class="btn btn-approve btn-small">
+                    Review &amp; Present
+                </a>
+                <form method="post" action="{{ url_for('decline', req_index=loop.index0) }}" class="inline-form">
+                    <button type="submit" class="btn btn-decline btn-small"
+                            onclick="return confirm('Decline this request?');">
+                        Decline
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 <section class="panel">
     <div class="panel-header">
         <h2>&#9618; Known Issuers</h2>
@@ -108,4 +146,21 @@ Schema:             Not advertised
     <div class="empty-state">No protocol trails recorded.</div>
     {% endif %}
 </section>
+
+<script>
+// Auto-refresh: poll for incoming VP requests
+(function() {
+    let knownCount = {{ pending_requests|length }};
+    setInterval(function() {
+        fetch('{{ url_for("api_pending_requests") }}')
+            .then(r => r.json())
+            .then(data => {
+                if (data.count !== knownCount) {
+                    location.reload();
+                }
+            })
+            .catch(() => {});
+    }, 3000);
+})();
+</script>
 {% endblock %}

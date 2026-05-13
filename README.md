@@ -378,6 +378,10 @@ BBS-ISS-Prototype-DMU/
 │       │       ├── run_issuer.py       # Docker entrypoint: Issuer
 │       │       ├── run_verifier.py     # Docker entrypoint: Verifier
 │       │       └── run_registry.py     # Docker entrypoint: Registry
+│       ├── ui/                     # Browser-based Flask web interfaces (see ui/README.md)
+│       │   ├── holder/             # Wallet dashboard and issuance UI
+│       │   ├── issuer/             # Issuer configuration and schema management
+│       │   └── registry/           # Global issuer directory overview
 │       ├── exceptions/             # Exception hierarchy (see exceptions/README.md)
 │       │   └── exceptions.py
 │       └── utils/                  # Utilities (see utils/README.md)

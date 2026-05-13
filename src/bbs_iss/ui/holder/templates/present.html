@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Holder — Review Presentation Request{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <div class="panel-header">
+        <h2>&#9618; Presentation Request Review</h2>
+    </div>
+
+    <div class="present-form">
+        <div class="form-group">
+            <label>Requested Fields</label>
+            <div class="requested-fields">
+                {% for attr in requested_attributes %}
+                <span class="requested-field">{{ attr }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <form method="post" action="{{ url_for('present_submit', req_index=req_index) }}">
+            <div class="form-group">
+                <label for="vc_name">Select Credential</label>
+                {% if not credentials %}
+                <div class="attr-note">No credentials available. Issue a credential first.</div>
+                {% else %}
+                <select name="vc_name" id="vc_name" required onchange="onCredentialChange()">
+                    <option value="">-- select credential --</option>
+                    {% for cred in credentials %}
+                    <option value="{{ cred.name }}"
+                            data-has-all="{{ cred.has_all_fields | tojson }}"
+                            data-missing="{{ cred.missing_fields | join(', ') }}">
+                        {{ cred.name }} ({{ cred.issuer }})
+                        {% if cred.revoked %} [REVOKED]{% endif %}
+                        {% if cred.expired %} [EXPIRED]{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+            </div>
+
+            <!-- Compatibility indicator -->
+            <div id="compat-info" style="display:none; margin-bottom: 16px;">
+                <div id="compat-ok" class="compat-ok" style="display:none;">
+                    &#10003; Credential contains all requested fields.
+                </div>
+                <div id="compat-missing" class="compat-missing" style="display:none;">
+                    &#9888; Missing fields: <span id="missing-list"></span>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-approve" id="approve-btn" disabled>
+                    &#10003; Approve &amp; Present
+                </button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-small">Cancel</a>
+            </div>
+        </form>
+
+        <form method="post" action="{{ url_for('decline', req_index=req_index) }}" style="margin-top: 12px;">
+            <button type="submit" class="btn btn-decline"
+                    onclick="return confirm('Decline this presentation request?');">
+                &#10007; Decline Request
+            </button>
+        </form>
+    </div>
+</section>
+
+<script>
+function onCredentialChange() {
+    const select = document.getElementById('vc_name');
+    const option = select.options[select.selectedIndex];
+    const compatInfo = document.getElementById('compat-info');
+    const compatOk = document.getElementById('compat-ok');
+    const compatMissing = document.getElementById('compat-missing');
+    const missingList = document.getElementById('missing-list');
+    const approveBtn = document.getElementById('approve-btn');
+
+    if (!select.value) {
+        compatInfo.style.display = 'none';
+        approveBtn.disabled = true;
+        return;
+    }
+
+    compatInfo.style.display = 'block';
+    const hasAll = option.dataset.hasAll === 'true';
+    const missing = option.dataset.missing;
+
+    if (hasAll) {
+        compatOk.style.display = 'block';
+        compatMissing.style.display = 'none';
+        approveBtn.disabled = false;
+    } else {
+        compatOk.style.display = 'none';
+        compatMissing.style.display = 'block';
+        missingList.textContent = missing;
+        approveBtn.disabled = true;
+    }
+}
+</script>
+{% endblock %}
