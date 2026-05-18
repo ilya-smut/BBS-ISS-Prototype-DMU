@@ -131,7 +131,7 @@ def main():
     print("\nBenchmark D.1.1: ZKP Hidden Fields Scaling (N=100)...")
     results_d11 = []
     
-    for h in range(0, 101, 5):
+    for h in range(0, 96, 5):
         print(f"  - Hidden fields: {h}/100...", end="", flush=True)
         # We need a credential with 100 attributes, of which at least h are hidden (issued as hidden)
         # To make it simple, we issue with h hidden, and 100-h revealed

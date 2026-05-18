@@ -73,8 +73,8 @@ def run_orchestrator_issuance(num_total_attrs, num_hidden):
     trail = holder_orc.execute_issuance("Mock-Issuer", attributes, "benchmark-doc")
     duration = time.perf_counter() - t_start
     
-    if trail.status != api.RequestTrailStatus.COMPLETED:
-        raise RuntimeError(f"Orchestration failed: {trail.failure_reason}")
+    if trail.status != "COMPLETED":
+        raise RuntimeError(f"Orchestration failed: {trail.error}")
     return duration
 
 def calculate_stats(data_list):

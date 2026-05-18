@@ -1,0 +1,398 @@
+{
+  "metadata": {
+    "iterations": 50,
+    "language": "rust"
+  },
+  "benchmark": [
+    {
+      "attribute_count": 10,
+      "stats": {
+        "signing": {
+          "mean_ms": 1.2130556,
+          "std_ms": 0.5171468197237996,
+          "median_ms": 0.9723225
+        },
+        "verification": {
+          "mean_ms": 3.67054364,
+          "std_ms": 0.8530257903144493,
+          "median_ms": 3.2442515
+        }
+      }
+    },
+    {
+      "attribute_count": 50,
+      "stats": {
+        "signing": {
+          "mean_ms": 2.6047836,
+          "std_ms": 0.17955788562544392,
+          "median_ms": 2.6099825
+        },
+        "verification": {
+          "mean_ms": 4.719086800000002,
+          "std_ms": 0.43054022916261847,
+          "median_ms": 4.61867
+        }
+      }
+    },
+    {
+      "attribute_count": 100,
+      "stats": {
+        "signing": {
+          "mean_ms": 4.434740140000001,
+          "std_ms": 0.3223580975177767,
+          "median_ms": 4.4391555
+        },
+        "verification": {
+          "mean_ms": 6.717273519999999,
+          "std_ms": 0.5831088762942043,
+          "median_ms": 6.7661359999999995
+        }
+      }
+    },
+    {
+      "attribute_count": 150,
+      "stats": {
+        "signing": {
+          "mean_ms": 5.9588487400000005,
+          "std_ms": 0.40890422786089214,
+          "median_ms": 6.053596000000001
+        },
+        "verification": {
+          "mean_ms": 8.38171862,
+          "std_ms": 0.5017677664529235,
+          "median_ms": 8.441514999999999
+        }
+      }
+    },
+    {
+      "attribute_count": 200,
+      "stats": {
+        "signing": {
+          "mean_ms": 7.85509414,
+          "std_ms": 0.4773704941235897,
+          "median_ms": 7.916256000000001
+        },
+        "verification": {
+          "mean_ms": 10.70409482,
+          "std_ms": 0.9120046507126527,
+          "median_ms": 10.5708555
+        }
+      }
+    },
+    {
+      "attribute_count": 250,
+      "stats": {
+        "signing": {
+          "mean_ms": 9.726883219999998,
+          "std_ms": 2.253113768598872,
+          "median_ms": 9.400196
+        },
+        "verification": {
+          "mean_ms": 13.020620979999997,
+          "std_ms": 2.271794852596832,
+          "median_ms": 12.2473585
+        }
+      }
+    },
+    {
+      "attribute_count": 300,
+      "stats": {
+        "signing": {
+          "mean_ms": 10.974332019999999,
+          "std_ms": 0.7256038115417943,
+          "median_ms": 11.1373915
+        },
+        "verification": {
+          "mean_ms": 15.150511499999995,
+          "std_ms": 1.010561857666323,
+          "median_ms": 15.164427499999999
+        }
+      }
+    },
+    {
+      "attribute_count": 350,
+      "stats": {
+        "signing": {
+          "mean_ms": 12.59870674,
+          "std_ms": 1.8990307331366683,
+          "median_ms": 12.785365500000001
+        },
+        "verification": {
+          "mean_ms": 16.757442,
+          "std_ms": 1.5070020633197154,
+          "median_ms": 16.531699
+        }
+      }
+    },
+    {
+      "attribute_count": 400,
+      "stats": {
+        "signing": {
+          "mean_ms": 13.30093146,
+          "std_ms": 0.9590675377176564,
+          "median_ms": 12.790968
+        },
+        "verification": {
+          "mean_ms": 17.727868599999994,
+          "std_ms": 1.2270847899249835,
+          "median_ms": 17.839065499999997
+        }
+      }
+    },
+    {
+      "attribute_count": 450,
+      "stats": {
+        "signing": {
+          "mean_ms": 23.76661298,
+          "std_ms": 19.030605532990965,
+          "median_ms": 16.9358095
+        },
+        "verification": {
+          "mean_ms": 26.49402076,
+          "std_ms": 7.769008547756652,
+          "median_ms": 24.6032865
+        }
+      }
+    },
+    {
+      "attribute_count": 500,
+      "stats": {
+        "signing": {
+          "mean_ms": 19.627031159999998,
+          "std_ms": 7.31009335915625,
+          "median_ms": 17.537059
+        },
+        "verification": {
+          "mean_ms": 26.116264440000005,
+          "std_ms": 5.946457310705678,
+          "median_ms": 23.778411
+        }
+      }
+    },
+    {
+      "attribute_count": 550,
+      "stats": {
+        "signing": {
+          "mean_ms": 19.295577599999998,
+          "std_ms": 2.2470580628988555,
+          "median_ms": 19.284876999999998
+        },
+        "verification": {
+          "mean_ms": 25.164452419999996,
+          "std_ms": 3.721703611903034,
+          "median_ms": 24.299484
+        }
+      }
+    },
+    {
+      "attribute_count": 600,
+      "stats": {
+        "signing": {
+          "mean_ms": 23.481785679999998,
+          "std_ms": 2.239483094556666,
+          "median_ms": 22.738003
+        },
+        "verification": {
+          "mean_ms": 30.685150159999992,
+          "std_ms": 5.8996988762770854,
+          "median_ms": 29.510867500000003
+        }
+      }
+    },
+    {
+      "attribute_count": 650,
+      "stats": {
+        "signing": {
+          "mean_ms": 25.566352499999997,
+          "std_ms": 4.463277188036791,
+          "median_ms": 24.448971
+        },
+        "verification": {
+          "mean_ms": 32.18195485999999,
+          "std_ms": 7.5444627475589385,
+          "median_ms": 29.9814795
+        }
+      }
+    },
+    {
+      "attribute_count": 700,
+      "stats": {
+        "signing": {
+          "mean_ms": 25.893198419999997,
+          "std_ms": 1.0008207358403018,
+          "median_ms": 25.598502
+        },
+        "verification": {
+          "mean_ms": 31.902892479999995,
+          "std_ms": 2.479934530936994,
+          "median_ms": 31.510764
+        }
+      }
+    },
+    {
+      "attribute_count": 750,
+      "stats": {
+        "signing": {
+          "mean_ms": 27.432011080000002,
+          "std_ms": 1.035821106883787,
+          "median_ms": 27.10695
+        },
+        "verification": {
+          "mean_ms": 33.47353596,
+          "std_ms": 3.1587715566327548,
+          "median_ms": 32.3354535
+        }
+      }
+    },
+    {
+      "attribute_count": 800,
+      "stats": {
+        "signing": {
+          "mean_ms": 28.94538904,
+          "std_ms": 1.1260912256429483,
+          "median_ms": 28.811521
+        },
+        "verification": {
+          "mean_ms": 34.44194452000001,
+          "std_ms": 1.9044071427386235,
+          "median_ms": 34.13501
+        }
+      }
+    },
+    {
+      "attribute_count": 850,
+      "stats": {
+        "signing": {
+          "mean_ms": 30.10444722,
+          "std_ms": 0.7527975740883939,
+          "median_ms": 29.998412000000002
+        },
+        "verification": {
+          "mean_ms": 36.561772319999996,
+          "std_ms": 2.860618589875739,
+          "median_ms": 35.6621505
+        }
+      }
+    },
+    {
+      "attribute_count": 900,
+      "stats": {
+        "signing": {
+          "mean_ms": 31.610492220000005,
+          "std_ms": 0.8162385444282159,
+          "median_ms": 31.361902
+        },
+        "verification": {
+          "mean_ms": 38.46181774,
+          "std_ms": 2.6765905381819306,
+          "median_ms": 37.648953999999996
+        }
+      }
+    },
+    {
+      "attribute_count": 950,
+      "stats": {
+        "signing": {
+          "mean_ms": 33.00537672,
+          "std_ms": 0.8941941775421276,
+          "median_ms": 32.661565
+        },
+        "verification": {
+          "mean_ms": 39.80453302000001,
+          "std_ms": 2.8334010810067296,
+          "median_ms": 39.30743150000001
+        }
+      }
+    },
+    {
+      "attribute_count": 1000,
+      "stats": {
+        "signing": {
+          "mean_ms": 34.18044232,
+          "std_ms": 0.9377031699446146,
+          "median_ms": 33.787860499999994
+        },
+        "verification": {
+          "mean_ms": 40.3284553,
+          "std_ms": 2.412273908387115,
+          "median_ms": 39.6453795
+        }
+      }
+    },
+    {
+      "attribute_count": 1050,
+      "stats": {
+        "signing": {
+          "mean_ms": 38.01182082,
+          "std_ms": 3.8329032692479763,
+          "median_ms": 36.564029
+        },
+        "verification": {
+          "mean_ms": 48.56879475999998,
+          "std_ms": 8.828151269886215,
+          "median_ms": 44.896879
+        }
+      }
+    },
+    {
+      "attribute_count": 1100,
+      "stats": {
+        "signing": {
+          "mean_ms": 42.27805642000001,
+          "std_ms": 8.444329607560867,
+          "median_ms": 38.818267
+        },
+        "verification": {
+          "mean_ms": 52.46982299999999,
+          "std_ms": 9.769230539365115,
+          "median_ms": 49.2642625
+        }
+      }
+    },
+    {
+      "attribute_count": 1150,
+      "stats": {
+        "signing": {
+          "mean_ms": 39.83358624,
+          "std_ms": 1.8964603603126169,
+          "median_ms": 39.388643
+        },
+        "verification": {
+          "mean_ms": 48.76285383999999,
+          "std_ms": 4.553627873818225,
+          "median_ms": 46.715823
+        }
+      }
+    },
+    {
+      "attribute_count": 1200,
+      "stats": {
+        "signing": {
+          "mean_ms": 41.07691121999999,
+          "std_ms": 1.0437672721528353,
+          "median_ms": 40.880884
+        },
+        "verification": {
+          "mean_ms": 49.7142265,
+          "std_ms": 3.4651391402221723,
+          "median_ms": 48.766961499999994
+        }
+      }
+    },
+    {
+      "attribute_count": 1250,
+      "stats": {
+        "signing": {
+          "mean_ms": 78.240913,
+          "std_ms": 27.755940111500202,
+          "median_ms": 69.0420775
+        },
+        "verification": {
+          "mean_ms": 97.28921534,
+          "std_ms": 26.047158563841382,
+          "median_ms": 98.104759
+        }
+      }
+    }
+  ]
+}
