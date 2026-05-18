@@ -1,5 +1,6 @@
 .venv/*
 examples/*
+testing/evaluation/notes/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
