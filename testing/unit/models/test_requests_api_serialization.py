@@ -2,7 +2,7 @@ import pytest
 import json
 import ursa_bbs_signatures as bbs
 from bbs_iss.interfaces.requests_api import (
-    Request, RequestType, VCIssuanceRequest, BlindSignRequest,
+    Request, RequestType, VCIssuanceRequest, ReIssueVCRequest, BlindSignRequest,
     FreshnessUpdateResponse, ForwardVCResponse, VPRequest,
     ForwardVPResponse, ForwardVpAndCmtRequest, RegisterIssuerDetailsRequest,
     UpdateIssuerDetailsRequest, GetIssuerDetailsRequest, IssuerDetailsResponse,
@@ -32,6 +32,13 @@ def test_vc_issuance_request_serialization():
     req2 = Request.from_dict(d)
     assert isinstance(req2, VCIssuanceRequest)
     assert req2.request_type == RequestType.ISSUANCE
+
+def test_reissue_vc_request_serialization():
+    req = ReIssueVCRequest()
+    d = req.to_dict()
+    req2 = Request.from_dict(d)
+    assert isinstance(req2, ReIssueVCRequest)
+    assert req2.request_type == RequestType.RE_ISSUANCE
 
 def test_blind_sign_request_serialization():
     attr = KeyedIndexedMessage(1, "val", "key")
@@ -150,6 +157,7 @@ def test_pretty_print_smoke():
     
     requests = [
         VCIssuanceRequest(),
+        ReIssueVCRequest(),
         BlindSignRequest(revealed_attributes=[], commitment=b"c", total_messages=1, proof=b"p", messages_with_blinded_indices=[]),
         FreshnessUpdateResponse(b"n"),
         ForwardVCResponse(vc),

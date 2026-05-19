@@ -346,6 +346,7 @@ class Request:
         # Dispatch table for polymorphic reconstruction
         type_to_class = {
             RequestType.ISSUANCE: VCIssuanceRequest,
+            RequestType.RE_ISSUANCE: ReIssueVCRequest,
             RequestType.BLIND_SIGN: BlindSignRequest,
             RequestType.FRESHNESS: FreshnessUpdateResponse,
             RequestType.FORWARD_VC: ForwardVCResponse,
@@ -425,6 +426,15 @@ class VCIssuanceRequest(Request):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> VCIssuanceRequest:
+        return cls()
+
+
+class ReIssueVCRequest(Request):
+    def __init__(self):
+        super().__init__(RequestType.RE_ISSUANCE)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> ReIssueVCRequest:
         return cls()
 
 

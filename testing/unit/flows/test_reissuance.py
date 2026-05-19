@@ -257,7 +257,7 @@ class TestReissuanceFlow:
         assert issuer.state.available is True
         
         # Make a valid fresh request to test that it works
-        req_freshness = api.Request(api.RequestType.RE_ISSUANCE)
+        req_freshness = api.ReIssueVCRequest()
         assert issuer.process_request(req_freshness) is not None
 
 

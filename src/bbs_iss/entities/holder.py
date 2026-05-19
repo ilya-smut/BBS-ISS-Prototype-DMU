@@ -194,7 +194,7 @@ class HolderInstance(Entity):
                 new_attributes.append(key, value, api.AttributeType.REVEALED)
                 
         self.state.start_re_issuance_interaction(stored_pub_key, new_attributes, vc_name, always_hidden_keys)
-        request = api.Request(api.RequestType.RE_ISSUANCE)
+        request = api.ReIssueVCRequest()
         return request
 
     def blind_sign_request(self, freshness: bytes):
