@@ -30,7 +30,7 @@ Tests in this category validate the core data structures, cryptographic hashing,
 
 ### `test_requests_api_serialization.py` — Polymorphic Serialization
 *   **`test_public_key_serialization`**: Verifies hex-encoding of BLS keys.
-*   **Polymorphic Dispatch**: Validates `Request.from_dict` and `Request.from_json` across all request types (`ISSUANCE`, `BLIND_SIGN`, `VP_REQUEST`, etc.).
+*   **Polymorphic Dispatch**: Validates `Request.from_dict` and `Request.from_json` across all request types (`ISSUANCE`, `RE_ISSUANCE`, `BLIND_SIGN`, `VP_REQUEST`, etc.).
 *   **Nested Object Support**: Ensures VCs and VPs are correctly handled within request payloads.
 *   **Pretty-Print Smoke Tests**: Confirms that `get_print_string()` generates valid, human-readable output for all request variants without crashing.
 

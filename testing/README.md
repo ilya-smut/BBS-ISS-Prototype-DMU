@@ -241,6 +241,11 @@ Disclosed messages:  {'name': 'Ilya', 'id': '123456', 'validUntil': '2026-05-28T
 ### PHASE 4: CREDENTIAL RE-ISSUANCE (RENEWAL)
 The Holder renews a credential near its epoch boundary. This involves presenting a ZKP of the old credential to bind the session and providing a *new* blinded commitment for the renewed credential. The Issuer verifies the old credential's validity and revocation status before issuing the renewal.
 
+1. **ReIssueVCRequest**: Initiation of re-issuance.
+2. **FreshnessUpdateResponse**: Issuer provides a 32-byte challenge nonce.
+3. **ForwardVpAndCmtRequest**: Holder provides selective disclosure VP, a new commitment, and proof of knowledge.
+4. **ForwardVCResponse**: Issuer returns the new blind signature on the renewed credential.
+
 ```text
 === Requesting reissuance ===
 Request 8:

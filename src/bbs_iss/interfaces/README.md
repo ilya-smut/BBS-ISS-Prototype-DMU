@@ -79,6 +79,7 @@ All protocol messages inherit from `Request` and carry a `request_type: RequestT
 | Class | Type | Direction | Description |
 |-------|------|-----------|-------------|
 | `VCIssuanceRequest` | `ISSUANCE` | Holder → Issuer | Initiates issuance |
+| `ReIssueVCRequest` | `RE_ISSUANCE` | Holder → Issuer | Initiates credential re-issuance |
 | `FreshnessUpdateResponse` | `FRESHNESS` | Issuer → Holder | Session nonce |
 | `BlindSignRequest` | `BLIND_SIGN` | Holder → Issuer | Commitment + proof + revealed attrs |
 | `ForwardVCResponse` | `FORWARD_VC` | Issuer → Holder | Signed credential |

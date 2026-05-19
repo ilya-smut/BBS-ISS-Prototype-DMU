@@ -99,7 +99,7 @@ sequenceDiagram
     participant H as Holder
     participant I as Issuer
 
-    H->>I: Request (RE_ISSUANCE)
+    H->>I: ReIssueVCRequest
     alt Issuer Busy
         I-->>H: ErrorResponse (ISSUER_UNAVAILABLE)
     else Issuer Available
@@ -184,6 +184,7 @@ The `ErrorResponse` is a terminal protocol message. Receiving it **forces** an e
 | Request Class | Key Fields | Purpose |
 |---------------|------------|---------|
 | `VCIssuanceRequest` | — | Signal start of issuance session. |
+| `ReIssueVCRequest` | — | Signal start of re-issuance session. |
 | `FreshnessUpdateResponse`| `nonce` | Challenge for cryptographic binding. |
 | `BlindSignRequest` | `commitment`, `proof`, `revealed_attributes` | Pedersen commitment and proof of knowledge. |
 | `ForwardVCResponse` | `vc` (VerifiableCredential) | Carries the BBS+ signature (blinded or clear). |
