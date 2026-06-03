@@ -15,14 +15,6 @@ class Endpoint(ABC):
     """
 
     def __init__(self, name: str, target_url: str = None):
-        """
-        Parameters
-        ----------
-        name : str
-            Human-readable identifier for this endpoint (e.g. "issuer", "registry").
-        target_url : str, optional
-            Network address of the remote entity. None for non-network endpoints.
-        """
         self.name = name
         self.target_url = target_url
 

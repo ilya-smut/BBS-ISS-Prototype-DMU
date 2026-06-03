@@ -18,17 +18,6 @@ class Listener(ABC):
     """
 
     def __init__(self, entity: Entity, host: str = "0.0.0.0", port: int = 5000):
-        """
-        Parameters
-        ----------
-        entity : Entity
-            The local entity whose process_request() will handle
-            incoming messages.
-        host : str
-            Bind address for the server.
-        port : int
-            Bind port for the server.
-        """
         self.entity = entity
         self.host = host
         self.port = port

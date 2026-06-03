@@ -27,27 +27,6 @@ class FlaskListener(Listener):
     """
     Flask-based server that receives protocol messages at /process
     and dispatches them appropriately.
-
-    For generic requests (issuance, registry), the listener calls
-    entity.process_request() directly.
-
-    For requests that require orchestrator-level handling (VP_REQUEST,
-    FORWARD_VP), the listener delegates to the orchestrator.
-
-    Parameters
-    ----------
-    entity : Entity
-        The local entity.
-    host : str
-        Bind address.
-    port : int
-        Bind port.
-    orchestrator : object, optional
-        The entity's orchestrator. Required for VP_REQUEST (Holder)
-        and FORWARD_VP (Verifier) handling.
-    presentation_config : dict, optional
-        Pre-configured defaults for Holder VP auto-response:
-        {"vc_name": str, "always_hidden_keys": list[str]}.
     """
 
     def __init__(

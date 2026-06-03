@@ -1,10 +1,3 @@
-"""
-Flask UI application for the Registry entity.
-
-Provides a browser-based interface for inspecting and
-managing registered issuer records.
-"""
-
 import os
 from threading import Thread
 
@@ -14,21 +7,7 @@ from bbs_iss.endpoints.orchestrator import RegistryOrchestrator
 
 
 def create_registry_ui(orch: RegistryOrchestrator, port: int = 8001) -> Flask:
-    """
-    Create and start the Registry UI Flask application.
-
-    Parameters
-    ----------
-    orch : RegistryOrchestrator
-        The orchestrator returned by registry_bootstrap().
-    port : int
-        Port for the UI server (separate from protocol listener).
-
-    Returns
-    -------
-    Flask
-        The Flask app instance.
-    """
+    """Create and start the Registry UI Flask application."""
     app = Flask(
         __name__,
         template_folder=os.path.join(os.path.dirname(__file__), "templates"),

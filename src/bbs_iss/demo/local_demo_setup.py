@@ -1,10 +1,4 @@
-"""
-Convenience helper for wiring all-local demo and testing environments.
 
-Creates all four orchestrators with LocalLoopbackEndpoints, so that
-protocol flows execute in-process with JSON serialization round-trips
-to validate the serialization layer.
-"""
 
 from bbs_iss.entities.holder import HolderInstance
 from bbs_iss.entities.issuer import IssuerInstance
@@ -25,53 +19,13 @@ def create_local_demo(
     verifier: VerifierInstance,
     registry: RegistryInstance,
 ) -> tuple[HolderOrchestrator, IssuerOrchestrator, VerifierOrchestrator, RegistryOrchestrator]:
-    """
-    Wire four entity instances into orchestrators connected via
-    LocalLoopbackEndpoints.
-
-    Each orchestrator's endpoints wrap the *other* entities, simulating
-    network boundaries through JSON serialization round-trips.
-
-    Parameters
-    ----------
-    issuer : IssuerInstance
-        The local Issuer entity.
-    holder : HolderInstance
-        The local Holder entity.
-    verifier : VerifierInstance
-        The local Verifier entity.
-    registry : RegistryInstance
-        The local Registry entity.
-
-    Returns
-    -------
-    tuple[HolderOrchestrator, IssuerOrchestrator, VerifierOrchestrator, RegistryOrchestrator]
-        Four pre-wired orchestrators ready for protocol execution.
-
-    Example
-    -------
-    >>> issuer = IssuerInstance()
-    >>> holder = HolderInstance()
-    >>> verifier = VerifierInstance()
-    >>> registry = RegistryInstance()
-    >>> holder_orch, issuer_orch, verifier_orch, registry_orch = create_local_demo(
-    ...     issuer, holder, verifier, registry
-    ... )
-    >>> # Register issuer
-    >>> trail = issuer_orch.register_with_registry()
-    >>> # Sync caches
-    >>> holder_orch.sync_registry()
-    >>> verifier_orch.sync_registry()
-    >>> # Execute issuance
-    >>> trail = holder_orch.execute_issuance("Issuer-Name", attributes, "my-cred")
-    """
-    # Create loopback endpoints — each wraps a remote entity
+    # Create loopback endpoints
     registry_ep = LocalLoopbackEndpoint("registry", registry)
     issuer_ep = LocalLoopbackEndpoint("issuer", issuer)
     holder_ep = LocalLoopbackEndpoint("holder", holder)
     verifier_ep = LocalLoopbackEndpoint("verifier", verifier)
 
-    # Wire orchestrators
+
     holder_orch = HolderOrchestrator(
         holder,
         issuer=issuer_ep,

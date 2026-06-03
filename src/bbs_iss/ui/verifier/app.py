@@ -1,10 +1,3 @@
-"""
-Flask UI application for the Verifier entity.
-
-Provides a browser-based interface for registry sync,
-presentation request creation, and verification result inspection.
-"""
-
 import os
 from datetime import datetime, timezone
 from threading import Thread
@@ -168,21 +161,7 @@ class VerifierAppState:
 
 
 def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
-    """
-    Create and start the Verifier UI Flask application.
-
-    Parameters
-    ----------
-    orch : VerifierOrchestrator
-        The orchestrator returned by verifier_bootstrap().
-    port : int
-        Port for the UI server (separate from protocol listener).
-
-    Returns
-    -------
-    Flask
-        The Flask app instance.
-    """
+    """Create and start the Verifier UI Flask application."""
     app = Flask(
         __name__,
         template_folder=os.path.join(os.path.dirname(__file__), "templates"),

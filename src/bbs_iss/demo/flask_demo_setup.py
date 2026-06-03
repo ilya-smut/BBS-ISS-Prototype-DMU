@@ -1,10 +1,4 @@
-"""
-Convenience helper for wiring a networked Flask demo environment.
 
-Creates all four orchestrators with FlaskEndpoints and starts
-FlaskListeners on separate ports, so that protocol flows execute
-over real HTTP transport.
-"""
 
 import time
 
@@ -33,29 +27,6 @@ def create_flask_demo(
     registry_port: int = DefaultPorts.REGISTRY,
     holder_port: int = DefaultPorts.HOLDER,
 ) -> tuple[HolderOrchestrator, IssuerOrchestrator, VerifierOrchestrator, RegistryOrchestrator]:
-    """
-    Wire four entity instances for networked demo.
-
-    Each server-side entity runs a Flask listener on a dedicated port.
-    Orchestrators communicate via FlaskEndpoints (HTTP POST).
-
-    Topology (single machine)::
-
-        Registry:  http://localhost:{registry_port}/process
-        Issuer:    http://localhost:{issuer_port}/process
-        Verifier:  http://localhost:{verifier_port}/process
-        Holder:    http://localhost:{holder_port}/process
-
-    Parameters
-    ----------
-    issuer, holder, verifier, registry : entity instances
-    issuer_port, verifier_port, registry_port, holder_port : int
-        Port assignments for each Flask server.
-
-    Returns
-    -------
-    tuple[HolderOrchestrator, IssuerOrchestrator, VerifierOrchestrator, RegistryOrchestrator]
-    """
     base = "http://localhost"
 
     # 1. Create FlaskEndpoints (client handles)

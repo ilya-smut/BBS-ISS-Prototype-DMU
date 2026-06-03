@@ -14,16 +14,6 @@ class FlaskEndpoint(Endpoint):
     """
 
     def __init__(self, name: str, target_url: str, timeout: int = DEFAULT_HTTP_TIMEOUT_SECONDS):
-        """
-        Parameters
-        ----------
-        name : str
-            Human-readable identifier (e.g. "issuer", "registry").
-        target_url : str
-            Base URL of the remote Flask server (e.g. "http://localhost:5001").
-        timeout : int
-            HTTP request timeout in seconds. Defaults to DEFAULT_HTTP_TIMEOUT_SECONDS.
-        """
         super().__init__(name, target_url)
         self._response = None
         self._timeout = timeout

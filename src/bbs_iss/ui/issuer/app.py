@@ -1,10 +1,3 @@
-"""
-Flask UI application for the Issuer entity.
-
-Provides a browser-based interface for issuer configuration,
-issued credential tracking, and revocation management.
-"""
-
 import os
 from datetime import datetime, timezone
 from threading import Thread
@@ -72,24 +65,7 @@ class IssuerAppState:
 
 
 def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
-    """
-    Create and start the Issuer UI Flask application.
-
-    Hooks into the entity's process_request to capture issued
-    credentials at the UI layer (no changes to issuer.py).
-
-    Parameters
-    ----------
-    orch : IssuerOrchestrator
-        The orchestrator returned by issuer_bootstrap().
-    port : int
-        Port for the UI server (separate from protocol listener).
-
-    Returns
-    -------
-    Flask
-        The Flask app instance.
-    """
+    """Create and start the Issuer UI Flask application."""
     app = Flask(
         __name__,
         template_folder=os.path.join(os.path.dirname(__file__), "templates"),

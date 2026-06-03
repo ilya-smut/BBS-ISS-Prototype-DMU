@@ -1,10 +1,3 @@
-"""
-Flask UI application for the Holder entity.
-
-Provides a browser-based interface for registry sync,
-credential issuance, and protocol trail inspection.
-"""
-
 import os
 from datetime import datetime, timedelta, timezone
 from threading import Thread
@@ -29,21 +22,7 @@ class HolderAppState:
 
 
 def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
-    """
-    Create and start the Holder UI Flask application.
-
-    Parameters
-    ----------
-    orch : HolderOrchestrator
-        The orchestrator returned by holder_bootstrap().
-    port : int
-        Port for the UI server (separate from protocol listener).
-
-    Returns
-    -------
-    Flask
-        The Flask app instance.
-    """
+    """Create and start the Holder UI Flask application."""
     app = Flask(
         __name__,
         template_folder=os.path.join(os.path.dirname(__file__), "templates"),
