@@ -50,11 +50,6 @@ source .venv/bin/activate
   - **Verifier**: http://localhost:8003
   - **Holder**: http://localhost:8004
 
-- **Docker Compose**:
-  ```bash
-  docker compose up --build
-  ```
-
 ---
 
 ## Project Structure
@@ -63,8 +58,6 @@ source .venv/bin/activate
 BBS-ISS-Prototype-DMU/
 ├── setup.sh
 ├── pyproject.toml
-├── Dockerfile
-├── docker-compose.yml
 ├── README.md
 ├── BBS_LIBRARY_FIX.md
 ├── BLINDED_COMMITMENT_NOTE.md
