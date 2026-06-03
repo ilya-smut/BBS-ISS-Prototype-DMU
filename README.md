@@ -1,6 +1,6 @@
 # BBS-ISS-Prototype-DMU
 
-A proof-of-concept Python prototype for a **Privacy-Preserving Verifiable Credential System** using **BBS+ signatures and Zero-Knowledge Proofs (ZKPs)**.
+A proof-of-concept Python prototype for a **Privacy-Preserving Verifiable Credential System** using **BBS+ signatures**.
 
 Built on top of the `ursa_bbs_signatures` library, this project implements a blind credential issuance protocol with Pedersen commitments, selective disclosure presentations with bound nonces, credential renewal (re-issuance), and epoch-based revocation.
 
