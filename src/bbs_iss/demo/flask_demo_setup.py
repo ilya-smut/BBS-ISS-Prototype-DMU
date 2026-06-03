@@ -58,7 +58,7 @@ def create_flask_demo(
     """
     base = "http://localhost"
 
-    # ── 1. Create FlaskEndpoints (client handles) ────────────────────
+    # 1. Create FlaskEndpoints (client handles)
     registry_ep_for_holder  = FlaskEndpoint("registry", f"{base}:{registry_port}")
     registry_ep_for_issuer  = FlaskEndpoint("registry", f"{base}:{registry_port}")
     registry_ep_for_verifier = FlaskEndpoint("registry", f"{base}:{registry_port}")
@@ -66,7 +66,7 @@ def create_flask_demo(
     verifier_ep = FlaskEndpoint("verifier", f"{base}:{verifier_port}")
     holder_ep   = FlaskEndpoint("holder",   f"{base}:{holder_port}")
 
-    # ── 2. Create Orchestrators ──────────────────────────────────────
+    # 2. Create Orchestrators
     holder_orch = HolderOrchestrator(
         holder,
         issuer=issuer_ep,
@@ -84,7 +84,7 @@ def create_flask_demo(
     )
     registry_orch = RegistryOrchestrator(registry)
 
-    # ── 3. Create and start Listeners ────────────────────────────────
+    # 3. Create and start Listeners
     registry_listener = FlaskListener(registry, port=registry_port)
     issuer_listener   = FlaskListener(issuer,   port=issuer_port)
     verifier_listener = FlaskListener(

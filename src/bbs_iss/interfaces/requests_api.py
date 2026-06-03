@@ -91,13 +91,6 @@ class IssuerPublicData:
     schema: Optional[CredentialSchema] = None
 
     def check_revocation_status(self, bit_index_hex: str) -> bool:
-        """
-        Checks if the credential at the given bit_index_hex is revoked.
-        The revocation_bitstring is expected to be a hex-encoded bitstring.
-        Bit 0 is the MSB of the first byte.
-        Returns True if revoked (bit is 1), False if valid (bit is 0).
-        If the index is out of bounds, it is considered valid (False).
-        """
         try:
             bit_index = int(bit_index_hex, 16)
             bitstring_bytes = bytes.fromhex(self.revocation_bitstring)

@@ -42,11 +42,9 @@ class VerifierInstance(Entity):
 
     @property
     def available(self) -> bool:
-        """Returns True if the Verifier is not currently in an active interaction."""
         return self.state.available
 
     def reset(self):
-        """Manually resets the Verifier state, cancelling any active interaction."""
         self.state.end_interaction()
 
     def presentation_request(self, requested_attributes: list[str]):
@@ -117,9 +115,6 @@ class VerifierInstance(Entity):
             raise ValueError("Invalid request type")
             
     def get_issuer_details(self, issuer_name: str) -> api.IssuerPublicData | api.GetIssuerDetailsRequest:
-        """
-        Retrieves issuer details from local cache or generates a registry request.
-        """
         data = self.public_data_cache.get(issuer_name)
         if data:
             return data
@@ -128,9 +123,6 @@ class VerifierInstance(Entity):
         return api.GetIssuerDetailsRequest(issuer_name)
             
     def fetch_all_issuer_details(self) -> api.BulkGetIssuerDetailsRequest:
-        """
-        Generates a bulk registry request to fetch all registered issuers.
-        """
         self.state.start_registry_interaction(api.RequestType.BULK_ISSUER_DETAILS_REQUEST)
         return api.BulkGetIssuerDetailsRequest()
 
@@ -140,38 +132,9 @@ class VerifierInstance(Entity):
         current_date: datetime = None, 
         with_bit_index: bool = False
     ) -> bool:
-        """
-        Performs high-level validity checks on a Verifiable Presentation.
-        
-        1. Expiration check: Verifies that 'validUntil' exists and is in the future.
-        2. Revocation check (Optional): Verifies that the credential's bit index 
-           is not marked as revoked in the issuer's registered bitstring.
-
-        Parameters
-        ----------
-        vp : VerifiablePresentation
-            The presentation to check.
-        current_date : datetime, optional
-            The date to check against. Defaults to UTC now.
-        with_bit_index : bool, optional
-            If True, also performs a revocation status check via the bitstring.
-            Requires 'revocationMaterial' to be disclosed.
-
-        Returns
-        -------
-        bool
-            True if all enabled checks pass, False otherwise.
-
-        Raises
-        ------
-        MissingAttributeError
-            If 'validUntil' or 'revocationMaterial' (when requested) are not present.
-        IssuerNotFoundInCacheError
-            If with_bit_index=True and the issuer's public data is not in cache.
-        """
         revealed = vp.verifiableCredential["credentialSubject"]
         
-        # ── 1. Expiration Check ──────────────────────────────────────
+        # Expiration check
         if VerifiableCredential.VALID_UNTIL_KEY not in revealed:
             raise MissingAttributeError(f"Attribute '{VerifiableCredential.VALID_UNTIL_KEY}' not found in presentation")
             
@@ -186,7 +149,7 @@ class VerifierInstance(Entity):
         if check_date > expiry_date:
             return False
 
-        # ── 2. Revocation Check ──────────────────────────────────────
+        # Revocation check
         if with_bit_index:
             if VerifiableCredential.REVOCATION_MATERIAL_KEY not in revealed:
                 raise MissingAttributeError(f"Attribute '{VerifiableCredential.REVOCATION_MATERIAL_KEY}' not found in presentation")
@@ -202,30 +165,7 @@ class VerifierInstance(Entity):
         return True
         
     def verify_vp(self, vp: VerifiablePresentation, pub_key: api.PublicKeyBLS) -> tuple[bool, dict[str, str] | None, VerifiablePresentation]:
-        """
-        Verifies a Verifiable Presentation against the challenge nonce
-        held in state and the issuer's public key.
-
-        Verification is two-phase:
-            1. **Attribute completeness** — the VP's credentialSubject must
-               contain every attribute the Verifier originally requested.
-            2. **Cryptographic validity** — the BBS+ ZKP must verify against
-               the issuer's public key and the bound nonce.
-
-        Parameters
-        ----------
-        vp : VerifiablePresentation
-            The presentation to verify.
-        pub_key : PublicKeyBLS
-            The issuer's BLS12-381 G2 public key.
-
-        Returns
-        -------
-        tuple[bool, dict[str, str] | None, VerifiablePresentation]
-            (is_valid, revealed_attributes, vp)
-            On failure, revealed_attributes is None.
-        """
-        # ── Phase 1: Attribute completeness ──────────────────────────
+        # Attribute completeness
         received_keys = set(vp.verifiableCredential["credentialSubject"].keys())
         requested_keys = set(self.state.attributes)
         missing = requested_keys - received_keys
@@ -233,7 +173,7 @@ class VerifierInstance(Entity):
             self.state.end_interaction()
             return (False, None, vp)
 
-        # ── Phase 2: Cryptographic verification ──────────────────────
+        # Cryptographic verification
         request = vp.prepare_verification_request(
             pub_key=pub_key,
             nonce=self.state.freshness,

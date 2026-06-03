@@ -36,7 +36,7 @@ def create_registry_ui(orch: RegistryOrchestrator, port: int = 8001) -> Flask:
     )
     app.secret_key = os.urandom(16)
 
-    # ── Dashboard ────────────────────────────────────────────────────
+    # Dashboard
 
     @app.route("/")
     def dashboard():
@@ -64,7 +64,7 @@ def create_registry_ui(orch: RegistryOrchestrator, port: int = 8001) -> Flask:
     def api_records_count():
         return jsonify({"count": len(orch.entity._store)})
 
-    # ── Delete Record ────────────────────────────────────────────────
+    # Delete Record
 
     @app.route("/delete/<issuer_name>", methods=["POST"])
     def delete_record(issuer_name):
@@ -76,7 +76,7 @@ def create_registry_ui(orch: RegistryOrchestrator, port: int = 8001) -> Flask:
             flash(f"Record '{issuer_name}' not found.", "error")
         return redirect(url_for("dashboard"))
 
-    # ── Start server on daemon thread ────────────────────────────────
+    # Start server on daemon thread
 
     thread = Thread(
         target=app.run,

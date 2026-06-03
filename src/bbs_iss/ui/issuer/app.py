@@ -98,7 +98,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
     app.secret_key = os.urandom(16)
     state = IssuerAppState(orch)
 
-    # ── Hook into entity.process_request to capture issued VCs ───────
+    # Hook into entity.process_request to capture issued VCs
 
     _original_process = orch.entity.process_request
 
@@ -115,7 +115,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
 
     orch.entity.process_request = _hooked_process
 
-    # ── Dashboard ────────────────────────────────────────────────────
+    # Dashboard
 
     @app.route("/")
     def dashboard():
@@ -162,7 +162,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
             trails=state.trails,
         )
 
-    # ── Configuration Update ─────────────────────────────────────────
+    # Configuration Update
 
     @app.route("/configure", methods=["POST"])
     def configure():
@@ -193,7 +193,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
         flash("Configuration updated.", "success")
         return redirect(url_for("dashboard"))
 
-    # ── Schema Update ────────────────────────────────────────────────
+    # Schema Update
 
     # Meta keys appended automatically by build_commitment_append_meta
     _META_KEYS = [
@@ -243,7 +243,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
         from flask import jsonify
         return jsonify({"count": len(state.issued_credentials)})
 
-    # ── Register / Update Registry ───────────────────────────────────
+    # Register / Update Registry
 
     @app.route("/register", methods=["POST"])
     def register_registry():
@@ -271,7 +271,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
             flash(f"Update error: {e}", "error")
         return redirect(url_for("dashboard"))
 
-    # ── Revoke Credential ────────────────────────────────────────────
+    # Revoke Credential
 
     @app.route("/revoke/<int:cred_index>", methods=["POST"])
     def revoke(cred_index):
@@ -306,7 +306,7 @@ def create_issuer_ui(orch: IssuerOrchestrator, port: int = 8002) -> Flask:
 
         return redirect(url_for("dashboard"))
 
-    # ── Start server on daemon thread ────────────────────────────────
+    # Start server on daemon thread
 
     thread = Thread(
         target=app.run,

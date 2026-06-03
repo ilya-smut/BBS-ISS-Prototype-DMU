@@ -22,7 +22,7 @@ A working proof-of-concept Python prototype for a **Privacy-Preserving Verifiabl
   - [Listeners](#listeners)
   - [Consent Mechanism](#consent-mechanism)
 - [Project Structure](#project-structure)
-- [Detailed Protocol Flows (Sequence Diagrams)](PROTOCOL_FLOWS.md)
+- [Detailed Protocol Flows](#protocol-design)
 - [Known Issues & Library Fixes](#known-issues--library-fixes)
 
 ---
@@ -383,67 +383,66 @@ An optional **VP timeout** (`vp_timeout_seconds`) resets the Verifier's state if
 
 ```
 BBS-ISS-Prototype-DMU/
-├── setup.sh                        # Automated installation script
-├── pyproject.toml                  # Package configuration
-├── Dockerfile                      # Container image definition
-├── docker-compose.yml              # Multi-container orchestration
-├── README.md                       # Architecture documentation (this file)
-├── PROTOCOL_FLOWS.md               # Detailed sequence diagrams
-├── BBS_LIBRARY_FIX.md              # ursa_bbs_signatures bug fixes
-├── BLINDED_COMMITMENT_NOTE.md      # Security note on blinded index leakage
+├── setup.sh
+├── pyproject.toml
+├── Dockerfile
+├── docker-compose.yml
+├── README.md
+├── BBS_LIBRARY_FIX.md
+├── BLINDED_COMMITMENT_NOTE.md
 ├── vendor/
-│   └── ffi-bbs-signatures/         # Vendored and patched cryptography library
+│   └── ffi-bbs-signatures/
 ├── src/
-│   └── bbs_iss/                    # Main package
-│       ├── entities/               # Protocol participants (see entities/README.md)
-│       │   ├── entity.py           # Entity ABC
-│       │   ├── issuer.py           # IssuerInstance
-│       │   ├── holder.py           # HolderInstance
-│       │   ├── verifier.py         # VerifierInstance
-│       │   └── registry.py         # RegistryInstance
-│       ├── interfaces/             # Data types & serialization (see interfaces/README.md)
-│       │   ├── requests_api.py     # Request/response classes, key wrappers
-│       │   └── credential.py       # VerifiableCredential, VerifiablePresentation
-│       ├── endpoints/              # Transport & orchestration (see endpoints/README.md)
-│       │   ├── endpoint.py         # Endpoint ABC (client-side transport)
-│       │   ├── listener.py         # Listener ABC (server-side transport)
-│       │   ├── loopback.py         # LocalLoopbackEndpoint (in-process)
-│       │   ├── flask_endpoint.py   # FlaskEndpoint (HTTP client)
-│       │   ├── flask_listener.py   # FlaskListener (Flask server)
-│       │   ├── orchestrator.py     # Protocol orchestrators
-│       │   └── trail.py            # Execution trail recorder
-│       ├── demo/                   # Demo setup & config (see demo/README.md)
-│       │   ├── demo_configuration.py  # Default ports, routes, entity names
-│       │   ├── local_demo_setup.py    # In-process loopback wiring
-│       │   ├── flask_demo_setup.py    # Networked Flask wiring
-│       │   └── scripts/               # Per-entity bootstrap (see scripts/README.md)
-│       │       ├── flask_bootstrap.py  # Bootstrap functions (parameterised)
-│       │       ├── run_holder.py       # Docker entrypoint: Holder
-│       │       ├── run_issuer.py       # Docker entrypoint: Issuer
-│       │       ├── run_verifier.py     # Docker entrypoint: Verifier
-│       │       └── run_registry.py     # Docker entrypoint: Registry
-│       ├── ui/                     # Browser-based Flask web interfaces (see ui/README.md)
-│       │   ├── holder/             # Wallet dashboard and issuance UI
-│       │   ├── issuer/             # Issuer configuration and schema management
-│       │   └── registry/           # Global issuer directory overview
-│       ├── exceptions/             # Exception hierarchy (see exceptions/README.md)
+│   └── bbs_iss/
+│       ├── entities/
+│       │   ├── entity.py
+│       │   ├── issuer.py
+│       │   ├── holder.py
+│       │   ├── verifier.py
+│       │   └── registry.py
+│       ├── interfaces/
+│       │   ├── requests_api.py
+│       │   └── credential.py
+│       ├── endpoints/
+│       │   ├── endpoint.py
+│       │   ├── listener.py
+│       │   ├── loopback.py
+│       │   ├── flask_endpoint.py
+│       │   ├── flask_listener.py
+│       │   ├── orchestrator.py
+│       │   └── trail.py
+│       ├── demo/
+│       │   ├── demo_configuration.py
+│       │   ├── local_demo_setup.py
+│       │   ├── flask_demo_setup.py
+│       │   └── scripts/
+│       │       ├── flask_bootstrap.py
+│       │       ├── run_holder.py
+│       │       ├── run_issuer.py
+│       │       ├── run_verifier.py
+│       │       └── run_registry.py
+│       ├── ui/
+│       │   ├── holder/
+│       │   ├── issuer/
+│       │   └── registry/
+│       ├── exceptions/
 │       │   └── exceptions.py
-│       └── utils/                  # Utilities (see utils/README.md)
-│           ├── utils.py            # Nonce/link-secret generation
-│           └── cache.py            # PublicDataCache manager
+│       └── utils/
+│           ├── utils.py
+│           └── cache.py
 ├── testing/
-│   ├── flask_demo.py               # Networked HTTP demo (4 Flask servers)
-│   ├── orch_demo.py                # Orchestrator demo (in-process)
-│   ├── demo.py                     # Legacy interactive demo
-│   └── unit/                       # Pytest test suite (see unit/README.md)
-│       ├── entities/               # Entity state machine tests
-│       ├── flows/                  # End-to-end protocol flow tests
-│       └── models/                 # Data model & serialization tests
+│   ├── flask_demo.py
+│   ├── orch_demo.py
+│   ├── demo.py
+│   └── unit/
+│       ├── entities/
+│       ├── flows/
+│       └── models/
 └── reference/
-    └── main.pdf                    # Reference paper
+    └── main.pdf
 ```
 
-Each `src/bbs_iss/` subdirectory contains its own `README.md` with detailed implementation documentation.
+
 
 ---
 

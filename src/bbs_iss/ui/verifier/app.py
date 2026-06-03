@@ -83,13 +83,13 @@ class VerifierAppState:
             result["overall_valid"] = False
             return result
 
-        # ── Expiration check ─────────────────────────────────────
+        # Expiration check
         try:
             result["expiration_valid"] = self.orch.entity.check_validity(vp)
         except MissingAttributeError:
             result["expiration_valid"] = None  # validUntil not disclosed
 
-        # ── Revocation check (only if revocationMaterial disclosed) ──
+        # Revocation check (only if revocationMaterial disclosed)
         if VerifiableCredential.REVOCATION_MATERIAL_KEY in (revealed_attrs or {}):
             try:
                 # Ensure we have the issuer's data for bitstring lookup
@@ -103,7 +103,7 @@ class VerifierAppState:
         else:
             result["revocation_valid"] = None  # Not checkable
 
-        # ── ABAC check ───────────────────────────────────────────
+        # ABAC check
         if self._last_abac_policy:
             abac_mismatches = []
             for attr, expected_val in self._last_abac_policy.items():
@@ -154,7 +154,7 @@ class VerifierAppState:
             result["abac_valid"] = None
             result["abac_mismatches"] = []
 
-        # ── Overall verdict ──────────────────────────────────────
+        # Overall verdict
         checks = [result["crypto_valid"], result["all_fields_present"]]
         if result["expiration_valid"] is not None:
             checks.append(result["expiration_valid"])
@@ -191,7 +191,7 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
     app.secret_key = os.urandom(16)
     state = VerifierAppState(orch)
 
-    # ── Dashboard ────────────────────────────────────────────────────
+    # Dashboard
 
     @app.route("/")
     def dashboard():
@@ -241,7 +241,7 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
             trails=state.trails,
         )
 
-    # ── Registry Sync ────────────────────────────────────────────────
+    # Registry Sync
 
     @app.route("/sync", methods=["POST"])
     def sync_registry():
@@ -256,7 +256,7 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
             flash(f"Registry sync error: {e}", "error")
         return redirect(url_for("dashboard"))
 
-    # ── Presentation Request Form ────────────────────────────────────
+    # Presentation Request Form
 
     @app.route("/request-presentation", methods=["GET"])
     def request_form():
@@ -301,7 +301,7 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
             "context": schema.context,
         })
 
-    # ── Presentation Request Submission ──────────────────────────────
+    # Presentation Request Submission
 
     @app.route("/request-presentation", methods=["POST"])
     def request_submit():
@@ -348,7 +348,7 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
 
         return redirect(url_for("dashboard"))
 
-    # ── API: Verification Results (for polling) ──────────────────────
+    # API: Verification Results (for polling)
 
     @app.route("/api/verification-results")
     def api_verification_results():
@@ -359,7 +359,7 @@ def create_verifier_ui(orch: VerifierOrchestrator, port: int = 8003) -> Flask:
             "awaiting": not state.orch.entity.available,
         })
 
-    # ── Start server on daemon thread ────────────────────────────────
+    # Start server on daemon thread
 
     thread = Thread(
         target=app.run,

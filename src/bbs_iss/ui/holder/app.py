@@ -52,7 +52,7 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
     app.secret_key = os.urandom(16)
     state = HolderAppState(orch)
 
-    # ── Dashboard ────────────────────────────────────────────────────
+    # Dashboard
 
     @app.route("/")
     def dashboard():
@@ -125,7 +125,7 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
             pending_requests=pending_requests,
         )
 
-    # ── Registry Sync ────────────────────────────────────────────────
+    # Registry Sync
 
     @app.route("/sync", methods=["POST"])
     def sync_registry():
@@ -140,7 +140,7 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
             flash(f"Registry sync error: {e}", "error")
         return redirect(url_for("dashboard"))
 
-    # ── Issuance Form ────────────────────────────────────────────────
+    # Issuance Form
 
     # Meta keys that build_commitment_append_meta handles automatically
     _META_KEYS = {"validUntil", "revocationMaterial", "metaHash"}
@@ -226,7 +226,7 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
 
         return redirect(url_for("dashboard"))
 
-    # ── Re-issuance ──────────────────────────────────────────────────
+    # Re-issuance
 
     @app.route("/reissue/<vc_name>", methods=["POST"])
     def reissue(vc_name):
@@ -249,14 +249,14 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
 
         return redirect(url_for("dashboard"))
 
-    # ── Pending Request Polling ───────────────────────────────────────
+    # Pending Request Polling
 
     @app.route("/api/pending-requests")
     def api_pending_requests():
         """JSON endpoint for auto-refresh polling of incoming VP requests."""
         return jsonify({"count": len(state.orch.pending_requests)})
 
-    # ── Presentation Consent ─────────────────────────────────────────
+    # Presentation Consent
 
     @app.route("/present/<int:req_index>", methods=["GET"])
     def present_form(req_index):
@@ -359,7 +359,7 @@ def create_holder_ui(orch: HolderOrchestrator, port: int = 8004) -> Flask:
         flash("Presentation request declined.", "success")
         return redirect(url_for("dashboard"))
 
-    # ── Start server on daemon thread ────────────────────────────────
+    # Start server on daemon thread
 
     thread = Thread(
         target=app.run,

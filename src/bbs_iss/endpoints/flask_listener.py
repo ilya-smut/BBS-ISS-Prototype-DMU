@@ -70,14 +70,14 @@ class FlaskListener(Listener):
         def process():
             req = api.Request.from_dict(flask_request.get_json())
 
-            # ── VP_REQUEST: queue in Holder orchestrator ──────────────
+            # VP_REQUEST: queue in Holder orchestrator
             if req.request_type == api.RequestType.VP_REQUEST:
                 if self.orchestrator is None:
                     return "", 501  # Not configured for VP handling
                 self.orchestrator.pending_requests.append(req)
                 return "", 200
 
-            # ── FORWARD_VP: delegate to Verifier orchestrator ────────
+            # FORWARD_VP: delegate to Verifier orchestrator
             if req.request_type == api.RequestType.FORWARD_VP:
                 if self.orchestrator is None:
                     return "", 501
@@ -89,7 +89,7 @@ class FlaskListener(Listener):
                 except Exception as e:
                     return _json_response({"error": str(e)}, status=500)
 
-            # ── Generic: entity-level dispatch ───────────────────────
+            # Generic: entity-level dispatch
             try:
                 result = self.entity.process_request(req)
             except Exception as e:

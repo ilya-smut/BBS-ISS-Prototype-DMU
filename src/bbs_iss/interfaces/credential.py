@@ -10,9 +10,6 @@ if TYPE_CHECKING:
 
 
 class VerifiableCredential:
-    """
-    A mock W3C Verifiable Credential class for BBS+ signatures.
-    """
     DEFAULT_CONTEXT = [
         "https://www.w3.org/ns/credentials/v2",
     ]
@@ -119,15 +116,10 @@ class VerifiableCredential:
     
     @staticmethod
     def prep_body_for_vp(credential, revealed_keys: List[str]) -> Dict[str, Any]:
-        """
-        Prepares the JSON body for a Verifiable Presentation by stripping 
-        non-disclosed fields from the credentialSubject.
-        """
         body = credential.to_dict()
-        body["proof"] = None # Placeholder for the ZKP
+        body["proof"] = None
         
         # Filter credentialSubject to only include revealed keys
-        # We use a dictionary comprehension to avoid mutation-during-iteration errors
         body["credentialSubject"] = {
             k: v for k, v in credential.credential_subject.items() if k in revealed_keys
         }
@@ -146,21 +138,7 @@ class VerifiableCredential:
         return request
     
     def normalize_meta_fields(self) -> str:
-        """
-        {
-            '@context': [context_strings],
-            'type': [type_strings],
-            'issuer': 'Issuer-name',
-            'credentialSubject': {
-                'key1': 'value1',
-                'key2': 'value2'
-            },
-            'proof': 'ProofBytes'
-        } --> incremental hashing of ['@context', [context_strings], 'type', [type_strings], 'issuer', 'Issuer-name', 'credentialSubject', ['key1', 'key2', ...], 'proof'] --> HashValue
-
-        Incrementally hashes each component via blake2b to avoid
-        building a large intermediate concatenated string.
-        """
+        """Incrementally hashes the VC envelope via blake2b to produce a deterministic metaHash."""
         h = hashlib.blake2b(digest_size=32)
 
         # @context
@@ -189,10 +167,6 @@ class VerifiableCredential:
         
 
 class VerifiablePresentation:
-    """
-    A mock W3C Verifiable Presentation class for credentials with BBS+ signatures.
-    NOTE: Verifiable presentations SHOULD be extremely short-lived and bound to a challenge provided by a verifier. Details for accomplishing this depend on the securing mechanism, the transport protocol, and verifier policies.
-    """
 
     DEFAULT_CONTEXT = [
         "https://www.w3.org/ns/credentials/v2"
@@ -214,7 +188,6 @@ class VerifiablePresentation:
         self.verifiableCredential = verifiableCredential
 
     def add_proof(self, proof: bytes):
-        """Sets the ZKP proof on the embedded verifiable credential."""
         self.verifiableCredential["proof"] = proof
 
     def produce_schema(self) -> 'CredentialSchema':
@@ -242,7 +215,7 @@ class VerifiablePresentation:
             **schema_kwargs
         )
 
-    # ── Serialisation ────────────────────────────────────────────────
+    # Serialisation
 
     def to_dict(self) -> Dict[str, Any]:
         data = {
@@ -253,8 +226,6 @@ class VerifiablePresentation:
         return data
 
     def _serialise_vc_field(self) -> Optional[Dict[str, Any]]:
-        """Returns a JSON-safe copy of verifiableCredential, converting any
-        bytes proof to hex."""
         if self.verifiableCredential is None:
             return None
         vc_copy = dict(self.verifiableCredential)
@@ -286,36 +257,17 @@ class VerifiablePresentation:
         data = json.loads(json_str)
         return cls.from_dict(data)
 
-    # ── Meta-field normalisation & nonce binding ────────────────────
+    # Meta-field normalisation and nonce binding
 
     def normalize_meta_fields(self) -> str:
-        """
-        Incrementally hashes the VP envelope and the embedded credential
-        envelope via blake2b, producing a deterministic hex digest.
-
-        Hashed components (in order):
-            1. VP  @context  — each context string
-            2. VP  type      — each type string
-            3. VC  @context  — each context string from the embedded credential
-            4. VC  type      — each type string  from the embedded credential
-            5. VC  issuer
-            6. VC  credentialSubject — *keys only* (revealed), in dict order
-            7. VC  proof     — marker only (the value is variable, not hashed)
-
-        Returns
-        -------
-        str
-            Hex-encoded blake2b digest (32 bytes / 64 hex chars).
-        """
+        """Incrementally hashes the VP envelope and embedded VC envelope via blake2b."""
         h = hashlib.blake2b(digest_size=32)
         vc = self.verifiableCredential
 
-        # The byte-string tags (e.g. b'@context', b'vc.@context') are
-        # schema-level domain separation constants. They prevent cross-field
-        # and cross-level hash collisions. The exact tag values are arbitrary
-        # but must be identical on both Holder and Verifier sides.
+        # The byte-string tags are domain separation constants to prevent
+        # cross-field and cross-level hash collisions.
 
-        # ── VP envelope ──
+        # VP envelope
         h.update(b'@context')
         for ctx in self.context:
             h.update(ctx.encode())
@@ -324,7 +276,7 @@ class VerifiablePresentation:
         for t in self.type:
             h.update(t.encode())
 
-        # ── Embedded credential envelope ──
+        # Embedded credential envelope
         h.update(b'vc.@context')
         for ctx in vc.get("@context", []):
             h.update(ctx.encode())
@@ -347,28 +299,7 @@ class VerifiablePresentation:
         return h.hexdigest()
 
     def build_bound_nonce(self, nonce: bytes, commitment: bytes = None) -> bytes:
-        """
-        Produces an *effective nonce* that binds the VP's metadata to the
-        verifier's challenge nonce.
-
-        ``effective_nonce = blake2b(nonce || meta_hash_bytes)``
-
-        Both the Holder (at proof-creation time) and the Verifier (at
-        proof-verification time) must call this method with the same
-        original nonce to obtain the same effective nonce.
-
-        Parameters
-        ----------
-        nonce : bytes
-            The original nonce supplied by the verifier.
-        commitment : bytes, optional
-            The commitment to the new hidden attributes for re-issuance.
-
-        Returns
-        -------
-        bytes
-            The bound nonce (32-byte blake2b digest).
-        """
+        """Produces an effective nonce binding VP metadata to the verifier's challenge."""
         meta_hash_bytes = bytes.fromhex(self.normalize_meta_fields())
         h = hashlib.blake2b(digest_size=32)
         h.update(nonce)
@@ -378,47 +309,25 @@ class VerifiablePresentation:
             h.update(commitment)
         return h.digest()
 
-    # ── Verification ─────────────────────────────────────────────────
+    # Verification
 
     def prepare_verification_request(
         self,
-        pub_key: PublicKeyBLS,
+        pub_key: 'PublicKeyBLS',
         nonce: bytes,
         commitment: bytes = None,
     ):
-        """
-        Constructs a ``bbs.VerifyProofRequest`` for this presentation.
-
-        The total number of original messages (revealed + hidden) is derived
-        directly from the proof bytes via ``bbs.get_total_message_count``,
-        so the verifier does not need to know the credential schema size
-        in advance.
-
-        Parameters
-        ----------
-        pub_key : PublicKeyBLS
-            The issuer's BLS12-381 G2 public key.
-        nonce : bytes
-            The *original* nonce supplied by the verifier (before binding).
-            This method applies ``build_bound_nonce`` internally.
-        commitment : bytes, optional
-            The commitment to the new hidden attributes for re-issuance.
-
-        Returns
-        -------
-        bbs.VerifyProofRequest
-        """
-        # The proof stored in the VP is the ZKP (not the original BBS signature)
+        # The proof stored in the VP is the ZKP
         proof = self.verifiableCredential["proof"]
 
         # Total message count is encoded in the proof itself
         total_messages = bbs.get_total_message_count(proof)
 
-        # Derive the BBS signing public key for the original message count
+        # Derive the BBS signing public key
         bls_key_pair = bbs.BlsKeyPair(public_key=pub_key.key)
         bbs_public_key = bls_key_pair.get_bbs_key(total_messages)
 
-        # Extract revealed messages from the credential subject values
+        # Extract revealed messages
         revealed_messages = list(
             self.verifiableCredential["credentialSubject"].values()
         )

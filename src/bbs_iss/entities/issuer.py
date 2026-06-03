@@ -166,11 +166,9 @@ class IssuerInstance(Entity):
         
     @property
     def available(self) -> bool:
-        """Returns True if the Issuer is not currently in an active interaction."""
         return self.state.available
 
     def reset(self):
-        """Manually resets the Issuer state, cancelling any active interaction."""
         self.state.end_interaction()
 
     def _get_epoch_params(self):
