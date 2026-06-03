@@ -60,7 +60,6 @@ BBS-ISS-Prototype-DMU/
 ├── pyproject.toml
 ├── README.md
 ├── BBS_LIBRARY_FIX.md
-├── BLINDED_COMMITMENT_NOTE.md
 ├── vendor/               # Patched version of ffi-bbs-signatures
 ├── src/
 │   └── bbs_iss/
@@ -79,4 +78,3 @@ BBS-ISS-Prototype-DMU/
 
 Due to compatibility bugs in the upstream `ursa_bbs_signatures` package (like issues during blind signing or serialization of G2 points), we vendor a patched version of the wrapper under `vendor/ffi-bbs-signatures/`.
 See [BBS_LIBRARY_FIX.md](BBS_LIBRARY_FIX.md) for full details on the modifications.
-A discussion of the security properties of commitment verification is available in [BLINDED_COMMITMENT_NOTE.md](BLINDED_COMMITMENT_NOTE.md).
